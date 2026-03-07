@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any
 
 from dashboard.storage import get_draft, list_drafts, mark_dispatched
 from integrations.ghl_client import GHLClient
@@ -117,11 +116,20 @@ async def dispatch_approved_drafts(
                 )
                 continue
 
+            # Resolve email: prefer contact_email, fall back to contact_id if it's an email
+            to_email = draft.contact_email or (draft.contact_id if "@" in draft.contact_id else "")
+            if not to_email:
+                result.failed += 1
+                result.errors.append(
+                    f"{draft.draft_id}: No email address for dispatch"
+                )
+                continue
+
             await circuit_breaker.call(
                 "ghl",
                 ghl.send_email,
                 contact_id=ghl_contact_id,
-                to_email=draft.contact_id,
+                to_email=to_email,
                 subject=draft.subject,
                 body=draft.body,
             )

@@ -47,6 +47,7 @@ def save_draft(draft: CampaignDraft) -> StoredDraft:
     stored = StoredDraft(
         draftId=draft.draft_id,
         contactId=draft.contact_id,
+        contactEmail=draft.contact_email,
         icpTier=draft.icp_tier,
         angleId=draft.angle_id,
         subject=draft.subject,

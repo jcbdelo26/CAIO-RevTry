@@ -111,14 +111,24 @@ class GHLClient:
         contact_id: str,
         title: str,
         description: str = "",
+        due_days: int = 3,
     ) -> dict[str, Any]:
-        """Create a follow-up task on a contact."""
+        """Create a follow-up task on a contact.
+
+        GHL API requires 'dueDate' and uses 'body' (not 'description').
+        """
+        from datetime import datetime, timezone, timedelta
+
+        due = (datetime.now(timezone.utc) + timedelta(days=due_days)).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z"
+        )
         payload: dict[str, Any] = {
             "title": title,
+            "dueDate": due,
             "completed": False,
         }
         if description:
-            payload["description"] = description
+            payload["body"] = description
 
         return await self._request(
             "POST", f"/contacts/{contact_id}/tasks", payload
@@ -130,16 +140,26 @@ class GHLClient:
         to_email: str,
         subject: str,
         body: str,
+        from_email: Optional[str] = None,
     ) -> dict[str, Any]:
         """Send warm email via GHL Conversations API.
 
         Uses POST /conversations/messages with type=Email.
         Requires the GHL contact ID (not the email address).
+        GHL API expects 'html' for email body and 'emailFrom' for sender.
         """
+        sender = from_email or os.environ.get("GHL_FROM_EMAIL", "")
+
+        # Convert plain text body to HTML (preserve line breaks)
+        html_body = body.replace("\n", "<br>\n")
+
         payload: dict[str, Any] = {
             "type": "Email",
             "contactId": contact_id,
             "subject": subject,
-            "body": body,
+            "html": html_body,
         }
+        if sender:
+            payload["emailFrom"] = sender
+
         return await self._request("POST", "/conversations/messages", payload)

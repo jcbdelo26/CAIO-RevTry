@@ -128,6 +128,8 @@ class TestGHLClientSendEmail:
         assert payload["type"] == "Email"
         assert payload["contactId"] == "ghl-contact-1"
         assert payload["subject"] == "AI Strategy"
+        assert "html" in payload  # GHL API uses 'html', not 'body'
+        assert "body" not in payload
 
     @pytest.mark.asyncio
     async def test_send_email_retry_on_500(self):
@@ -190,6 +192,9 @@ class TestGHLClientTask:
         assert result["task"]["id"] == "task-1"
         call_args = mock_http.request.call_args
         assert "/contacts/ghl-contact-1/tasks" in call_args[0][1]
+        payload = call_args.kwargs.get("json") or call_args[1].get("json")
+        assert "dueDate" in payload  # GHL requires dueDate
+        assert payload["body"] == "Approved draft for jane@acme.com"  # GHL uses 'body', not 'description'
 
 
 # ── GHL Service Tests ─────────────────────────────────────────────────────────

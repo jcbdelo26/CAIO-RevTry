@@ -148,6 +148,7 @@ class EnrichmentOutput(BaseModel):
 
 class SegmentationRecord(BaseModel):
     contact_id: str = Field(..., alias="contactId")
+    contact_email: Optional[str] = Field(None, alias="contactEmail")
     normalized_title: str = Field(..., alias="normalizedTitle")
     normalized_industry: str = Field(..., alias="normalizedIndustry")
     title_tier: str = Field(..., alias="titleTier")
@@ -202,6 +203,7 @@ class CampaignDraftTrace(BaseModel):
 class CampaignDraft(BaseModel):
     draft_id: str = Field(..., alias="draftId")
     contact_id: str = Field(..., alias="contactId")
+    contact_email: Optional[str] = Field(None, alias="contactEmail")
     icp_tier: str = Field(..., alias="icpTier")
     angle_id: str = Field(..., alias="angleId")
     subject: str = Field(..., max_length=60)
@@ -244,6 +246,7 @@ class StoredDraft(BaseModel):
     """A campaign draft persisted to the file-based dashboard storage."""
     draft_id: str = Field(..., alias="draftId")
     contact_id: str = Field(..., alias="contactId")
+    contact_email: Optional[str] = Field(None, alias="contactEmail")
     icp_tier: str = Field(..., alias="icpTier")
     angle_id: str = Field(..., alias="angleId")
     subject: str

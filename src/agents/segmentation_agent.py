@@ -220,6 +220,7 @@ def score_contact(
         rule_id, reason = dq
         return SegmentationRecord(
             contactId=record.contact_id,
+            contactEmail=record.email,
             normalizedTitle=_normalize_title(record.title or ""),
             normalizedIndustry=_normalize_industry(record.industry or ""),
             titleTier="unmatched",
@@ -295,6 +296,7 @@ def score_contact(
 
     return SegmentationRecord(
         contactId=record.contact_id,
+        contactEmail=record.email,
         normalizedTitle=_normalize_title(record.title or ""),
         normalizedIndustry=_normalize_industry(record.industry or ""),
         titleTier=title_tier,

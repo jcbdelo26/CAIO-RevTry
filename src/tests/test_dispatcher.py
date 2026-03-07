@@ -28,11 +28,14 @@ def _create_approved_draft(
     tier="1",
     channel=Channel.GHL,
     ghl_contact_id="ghl-contact-123",
+    contact_id="jane@acme.com",
+    contact_email=None,
 ):
     """Create, approve, and set ghl_push_result on a draft."""
     draft = CampaignDraft(
         draftId=draft_id,
-        contactId="jane@acme.com",
+        contactId=contact_id,
+        contactEmail=contact_email,
         icpTier=tier,
         angleId="angle-1",
         subject="AI Strategy for You",
@@ -78,6 +81,34 @@ class TestDispatcher:
         assert call_kwargs["subject"] == "AI Strategy for You"
 
     @pytest.mark.asyncio
+    async def test_dispatches_ghl_pipeline_draft_with_contact_email(self, tmp_path):
+        """GHL pipeline drafts use GHL ID as contact_id, email in contact_email."""
+        _create_approved_draft(
+            draft_id="d-ghl-pipe",
+            contact_id="tPnm9gvEJjxMLlJ8EJK3",
+            contact_email="garrett@godlan.com",
+            ghl_contact_id="ghl-contact-456",
+        )
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock(return_value={"messageId": "msg-2"})
+        mock_ghl.close = AsyncMock()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        result = await dispatch_approved_drafts(
+            tier_restriction=1,
+            rate_limiter=rl,
+            circuit_breaker=cb,
+            ghl=mock_ghl,
+        )
+
+        assert result.dispatched == 1
+        call_kwargs = mock_ghl.send_email.call_args.kwargs
+        assert call_kwargs["contact_id"] == "ghl-contact-456"
+        assert call_kwargs["to_email"] == "garrett@godlan.com"
+
+    @pytest.mark.asyncio
     async def test_ghl_dispatch_fails_without_contact_id(self, tmp_path):
         _create_approved_draft(draft_id="d-no-ghl", ghl_contact_id=None)
         mock_ghl = MagicMock()
@@ -98,6 +129,33 @@ class TestDispatcher:
         assert result.failed == 1
         assert "No GHL contact ID" in result.errors[0]
         mock_ghl.send_email.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_dispatch_fails_without_email(self, tmp_path):
+        """GHL pipeline draft with no contact_email and non-email contact_id fails."""
+        _create_approved_draft(
+            draft_id="d-no-email",
+            contact_id="tPnm9gvEJjxMLlJ8EJK3",
+            contact_email=None,
+            ghl_contact_id="ghl-contact-789",
+        )
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock()
+        mock_ghl.close = AsyncMock()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        result = await dispatch_approved_drafts(
+            tier_restriction=1,
+            rate_limiter=rl,
+            circuit_breaker=cb,
+            ghl=mock_ghl,
+        )
+
+        assert result.dispatched == 0
+        assert result.failed == 1
+        assert "No email address" in result.errors[0]
 
     @pytest.mark.asyncio
     async def test_instantly_channel_deferred(self, tmp_path):

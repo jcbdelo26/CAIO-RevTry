@@ -30,42 +30,45 @@ async def push_approved_draft_to_ghl(
         ghl = GHLClient()
 
     try:
-        # Parse contact info from the draft
-        email = draft.contact_id  # contact_id is email in current pipeline
-        first_name = ""
-        last_name = ""
-        company_name = ""
+        # Determine if contact_id is a GHL ID or an email
+        is_email = "@" in draft.contact_id
 
-        # Try to extract name/company from the draft body (first line greeting)
-        # For now, pass email as the primary identifier
-        upsert_result = await ghl.upsert_contact(
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-            company_name=company_name,
-            tags=["revtry-approved"],
-        )
-
-        contact = upsert_result.get("contact", {})
-        ghl_contact_id = contact.get("id", "")
-
-        # Create follow-up task
-        task_result: dict[str, Any] = {}
-        if ghl_contact_id:
-            task_result = await ghl.create_task(
-                contact_id=ghl_contact_id,
-                title=f"Follow up: {draft.subject}",
-                description=(
-                    f"Approved draft for {draft.contact_id}\n"
-                    f"Tier: {draft.icp_tier} | Channel: {draft.channel.value}\n"
-                    f"Angle: {draft.angle_id}"
-                ),
+        if is_email:
+            # Cold pipeline: contact_id is email — upsert to get GHL contact ID
+            upsert_result = await ghl.upsert_contact(
+                email=draft.contact_id,
+                tags=["revtry-approved"],
             )
+            contact = upsert_result.get("contact", {})
+            ghl_contact_id = contact.get("id", "")
+        else:
+            # GHL pipeline: contact_id IS the GHL contact ID — skip upsert
+            ghl_contact_id = draft.contact_id
+
+        # Best-effort: create follow-up task (failure must not block dispatch)
+        task_id = ""
+        task_error = ""
+        if ghl_contact_id:
+            try:
+                task_result = await ghl.create_task(
+                    contact_id=ghl_contact_id,
+                    title=f"Follow up: {draft.subject}",
+                    description=(
+                        f"Approved draft for {draft.contact_id}\n"
+                        f"Tier: {draft.icp_tier} | Channel: {draft.channel.value}\n"
+                        f"Angle: {draft.angle_id}"
+                    ),
+                )
+                task_id = task_result.get("task", {}).get("id", "")
+            except Exception as task_exc:
+                logger.warning("GHL task creation failed for draft %s: %s", draft.draft_id, task_exc)
+                task_error = str(task_exc)
 
         return {
             "status": "pushed",
             "ghl_contact_id": ghl_contact_id,
-            "ghl_task_id": task_result.get("task", {}).get("id", ""),
+            "ghl_task_id": task_id,
+            **({"task_error": task_error} if task_error else {}),
         }
 
     except Exception as exc:

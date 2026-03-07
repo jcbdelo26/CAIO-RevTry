@@ -142,6 +142,7 @@ def draft_campaign(
     return CampaignDraft(
         draftId=draft_id,
         contactId=record.contact_id,
+        contactEmail=record.contact_email,
         icpTier=tier,
         angleId=angle_id,
         subject=subject,
