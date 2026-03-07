@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Dispatch — RevTry Dashboard{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 16px;">Outreach Dispatch</h2>
+
+<!-- Stats Row -->
+<div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+    <div class="stat-card">
+        <div class="count">{{ queue | length }}</div>
+        <div class="label">Queued (Approved)</div>
+    </div>
+    <div class="stat-card">
+        <div class="count">{{ dispatched | length }}</div>
+        <div class="label">Dispatched</div>
+    </div>
+    <div class="stat-card">
+        <div class="count">{{ daily_limit }}</div>
+        <div class="label">Daily Limit / Channel</div>
+    </div>
+    {% if kpi %}
+    <div class="stat-card">
+        <div class="count" style="color: {% if kpi.emergency_stop %}#dc3545{% else %}#28a745{% endif %};">
+            {% if kpi.emergency_stop %}STOP{% else %}OK{% endif %}
+        </div>
+        <div class="label">KPI Status</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Circuit Breakers -->
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Circuit Breakers</h3>
+    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+        {% for integration, state in cb_states.items() %}
+        <div style="padding: 8px 16px; border-radius: 4px; background: {% if state == 'CLOSED' %}#d4edda{% elif state == 'OPEN' %}#f8d7da{% else %}#fff3cd{% endif %};">
+            <strong>{{ integration }}</strong>: {{ state }}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Daily Counts -->
+{% if daily_counts %}
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Today's Dispatch Counts</h3>
+    <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+        {% for channel, count in daily_counts.items() %}
+        <div>
+            <strong>{{ channel }}</strong>: {{ count }} / {{ daily_limit }}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- KPI -->
+{% if kpi %}
+<div class="card">
+    <h3 style="margin-bottom: 12px;">KPI Snapshot</h3>
+    <table>
+        <tr><th>Metric</th><th>Value</th></tr>
+        <tr><td>Sent</td><td>{{ kpi.sent_count }}</td></tr>
+        <tr><td>Opens</td><td>{{ kpi.open_count }} ({{ (kpi.open_rate * 100) | round(1) }}%)</td></tr>
+        <tr><td>Replies</td><td>{{ kpi.reply_count }} ({{ (kpi.reply_rate * 100) | round(1) }}%)</td></tr>
+        <tr><td>Bounces</td><td>{{ kpi.bounce_count }} ({{ (kpi.bounce_rate * 100) | round(1) }}%)</td></tr>
+        <tr><td>Unsubs</td><td>{{ kpi.unsub_count }} ({{ (kpi.unsub_rate * 100) | round(1) }}%)</td></tr>
+    </table>
+    {% if kpi.violations %}
+    <div style="margin-top: 12px; padding: 8px 16px; background: #f8d7da; border-radius: 4px;">
+        <strong>Violations:</strong>
+        <ul style="margin-top: 4px; padding-left: 20px;">
+            {% for v in kpi.violations %}
+            <li>{{ v }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Dispatch Queue -->
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Dispatch Queue ({{ queue | length }} approved)</h3>
+    {% if queue %}
+    <table>
+        <thead>
+            <tr>
+                <th>Contact</th>
+                <th>Subject</th>
+                <th>Channel</th>
+                <th>Tier</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in queue %}
+            <tr>
+                <td>{{ d.contact_id[:12] }}...</td>
+                <td><a href="/drafts/{{ d.draft_id }}">{{ d.subject[:40] }}</a></td>
+                <td>{{ d.channel.value }}</td>
+                <td><span class="badge badge-tier{{ d.icp_tier }}">T{{ d.icp_tier }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #666;">No approved drafts in queue.</p>
+    {% endif %}
+</div>
+
+<!-- Recent Dispatches -->
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Recent Dispatches ({{ dispatched | length }})</h3>
+    {% if dispatched %}
+    <table>
+        <thead>
+            <tr>
+                <th>Contact</th>
+                <th>Subject</th>
+                <th>Channel</th>
+                <th>Dispatched At</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in dispatched %}
+            <tr>
+                <td>{{ d.contact_id[:12] }}...</td>
+                <td><a href="/drafts/{{ d.draft_id }}">{{ d.subject[:40] }}</a></td>
+                <td>{{ d.dispatch_channel or d.channel.value }}</td>
+                <td>{{ d.dispatched_at or 'N/A' }}</td>
+                <td>
+                    {% if d.dispatch_error %}
+                    <span class="badge badge-rejected">ERROR</span>
+                    {% else %}
+                    <span class="badge badge-approved">SENT</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #666;">No dispatches yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

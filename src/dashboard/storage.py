@@ -91,7 +91,12 @@ def list_drafts() -> list[StoredDraft]:
             drafts.append(draft)
 
     # Sort: PENDING first, then by creation time desc
-    status_order = {DraftApprovalStatus.PENDING: 0, DraftApprovalStatus.APPROVED: 1, DraftApprovalStatus.REJECTED: 2}
+    status_order = {
+        DraftApprovalStatus.PENDING: 0,
+        DraftApprovalStatus.APPROVED: 1,
+        DraftApprovalStatus.DISPATCHED: 2,
+        DraftApprovalStatus.REJECTED: 3,
+    }
     drafts.sort(key=lambda d: (status_order.get(d.status, 9), d.created_at), reverse=False)
     return drafts
 
@@ -150,6 +155,30 @@ def reject_draft(
         encoding="utf-8",
     )
 
+    return draft
+
+
+def mark_dispatched(
+    draft_id: str,
+    channel: str,
+    error: Optional[str] = None,
+) -> Optional[StoredDraft]:
+    """Mark a draft as DISPATCHED after successful outreach send."""
+    draft = get_draft(draft_id)
+    if not draft:
+        return None
+
+    draft.status = DraftApprovalStatus.DISPATCHED
+    draft.dispatched_at = datetime.now(timezone.utc).isoformat()
+    draft.dispatch_channel = channel
+    if error:
+        draft.dispatch_error = error
+
+    draft_path = _drafts_dir() / f"{draft_id}.json"
+    draft_path.write_text(
+        json.dumps(draft.model_dump(by_alias=True), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
     return draft
 
 

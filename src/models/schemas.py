@@ -33,6 +33,7 @@ class DraftApprovalStatus(str, Enum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    DISPATCHED = "DISPATCHED"
 
 
 class IcpTier(str, Enum):
@@ -255,6 +256,9 @@ class StoredDraft(BaseModel):
     rejected_at: Optional[str] = Field(None, alias="rejectedAt")
     rejection_reason: Optional[str] = Field(None, alias="rejectionReason")
     ghl_push_result: Optional[dict] = Field(None, alias="ghlPushResult")
+    dispatched_at: Optional[str] = Field(None, alias="dispatchedAt")
+    dispatch_channel: Optional[str] = Field(None, alias="dispatchChannel")
+    dispatch_error: Optional[str] = Field(None, alias="dispatchError")
 
     model_config = {"populate_by_name": True}
 

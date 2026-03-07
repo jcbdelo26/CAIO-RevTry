@@ -8,6 +8,9 @@ Endpoints:
 - POST /drafts/{id}/reject  — Mark REJECTED, write feedback file
 - POST /drafts/batch/approve — Batch approve selected drafts
 - POST /drafts/batch/reject  — Batch reject selected drafts
+- GET /dispatch         — Dispatch queue + history
+- POST /dispatch/run    — Trigger a dispatch cycle
+- GET /dispatch/status  — JSON: circuit breaker states, daily counts, KPI
 """
 
 from __future__ import annotations
@@ -32,7 +35,13 @@ from dashboard.storage import (
 )
 from integrations.ghl_service import push_approved_draft_to_ghl
 
-app = FastAPI(title="RevTry Dashboard", version="0.2.0")
+from models.schemas import DraftApprovalStatus
+from pipeline.circuit_breaker import CircuitBreaker
+from pipeline.dispatcher import dispatch_approved_drafts
+from pipeline.kpi_tracker import KPITracker
+from pipeline.rate_limiter import DailyRateLimiter
+
+app = FastAPI(title="RevTry Dashboard", version="0.3.0")
 
 templates_dir = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
@@ -130,6 +139,73 @@ async def reject_draft_endpoint(draft_id: str, reason: str = Form("")):
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     return RedirectResponse(url=f"/drafts/{draft_id}", status_code=303)
+
+
+# ── Dispatch Endpoints ─────────────────────────────────────────────────────────
+
+
+@app.get("/dispatch", response_class=HTMLResponse)
+async def dispatch_view(request: Request) -> HTMLResponse:
+    """Show dispatch queue (APPROVED drafts) and recent dispatch history."""
+    all_drafts = list_drafts()
+    queue = [d for d in all_drafts if d.status == DraftApprovalStatus.APPROVED]
+    dispatched = [d for d in all_drafts if d.status == DraftApprovalStatus.DISPATCHED]
+
+    cb = CircuitBreaker()
+    rl = DailyRateLimiter()
+    kpi = KPITracker(circuit_breaker=cb)
+
+    return templates.TemplateResponse(
+        "dispatch.html",
+        {
+            "request": request,
+            "queue": queue,
+            "dispatched": dispatched,
+            "cb_states": cb.get_all_states(),
+            "daily_counts": rl.get_counts(),
+            "daily_limit": rl.limit,
+            "kpi": kpi.get_latest_kpi(),
+        },
+    )
+
+
+@app.post("/dispatch/run")
+async def dispatch_run():
+    """Trigger a dispatch cycle."""
+    result = await dispatch_approved_drafts()
+    return {
+        "dispatched": result.dispatched,
+        "skipped_dedup": result.skipped_dedup,
+        "skipped_rate_limit": result.skipped_rate_limit,
+        "skipped_circuit_breaker": result.skipped_circuit_breaker,
+        "skipped_tier": result.skipped_tier,
+        "failed": result.failed,
+        "errors": result.errors,
+    }
+
+
+@app.get("/dispatch/status")
+async def dispatch_status():
+    """JSON: circuit breaker states, daily counts, KPI summary."""
+    cb = CircuitBreaker()
+    rl = DailyRateLimiter()
+    kpi = KPITracker(circuit_breaker=cb)
+    snapshot = kpi.get_latest_kpi()
+
+    return {
+        "circuit_breakers": cb.get_all_states(),
+        "daily_counts": rl.get_counts(),
+        "daily_limit": rl.limit,
+        "kpi": {
+            "sent": snapshot.sent_count if snapshot else 0,
+            "opens": snapshot.open_count if snapshot else 0,
+            "replies": snapshot.reply_count if snapshot else 0,
+            "bounces": snapshot.bounce_count if snapshot else 0,
+            "unsubs": snapshot.unsub_count if snapshot else 0,
+            "emergency_stop": snapshot.emergency_stop if snapshot else False,
+            "violations": snapshot.violations if snapshot else [],
+        } if snapshot else None,
+    }
 
 
 if __name__ == "__main__":
