@@ -201,7 +201,10 @@ async def run_audit():
                 pass
 
         ranked.append({
+            "ghl_contact_id": c["id"],
             "name": f"{c.get('firstName', '')} {c.get('lastName', '')}".strip(),
+            "first_name": c.get("firstName", ""),
+            "last_name": c.get("lastName", ""),
             "email": c.get("email", ""),
             "company": c.get("companyName", ""),
             "phone": c.get("phone", ""),
@@ -214,7 +217,8 @@ async def run_audit():
         })
 
     ranked.sort(key=lambda x: x["score"], reverse=True)
-    audit["followup_list"] = ranked[:25]  # Top 25
+    audit["followup_list"] = ranked[:25]  # Top 25 for display
+    audit["followup_all_ranked"] = ranked  # Full list for whitelist export
 
     await ghl.close()
 
@@ -398,10 +402,40 @@ def write_followup_list(audit: dict) -> str:
     return str(followup_path)
 
 
+def write_followup_candidates_json(audit: dict) -> str:
+    """Write full candidate whitelist for enrichment script (HARDBLOCK-1 source)."""
+    outputs_dir = Path(os.environ.get("OUTPUTS_DIR", "outputs"))
+    path = outputs_dir / "ghl_followup_candidates.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    candidates = [
+        {
+            "ghl_contact_id": r["ghl_contact_id"],
+            "email": r["email"],
+            "first_name": r["first_name"],
+            "last_name": r["last_name"],
+            "company_name": r["company"],
+            "score": r["score"],
+        }
+        for r in audit["followup_all_ranked"]
+        if r.get("email")  # Must have email for Apollo matching
+    ]
+
+    data = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "total_candidates": len(candidates),
+        "candidates": candidates,
+    }
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    print(f"Whitelist written: {path} ({len(candidates)} candidates)")
+    return str(path)
+
+
 async def main():
     audit = await run_audit()
     write_vault_ghl_md(audit)
     write_followup_list(audit)
+    write_followup_candidates_json(audit)
     print("\nPhase 0 GHL Audit complete.")
 
 
