@@ -78,13 +78,19 @@ def validate_gate2(
         else:
             checks_passed += 1
 
-        # Check 5: Channel routing
+        # Check 5: Channel routing — only GHL warm email is active
         checks_run += 1
-        # Cold outreach must use Instantly, not GHL
         if draft.channel == Channel.GHL:
-            # Warn — only warm outreach uses GHL
-            pass  # Allow for now, flag in gate 3 if needed
-        checks_passed += 1
+            checks_passed += 1
+        elif draft.channel in (Channel.INSTANTLY, Channel.HEYREACH):
+            failures.append(
+                f"Check 5: Deferred channel '{draft.channel.value}' on draft {draft.draft_id} "
+                f"— only GHL warm email is active"
+            )
+        else:
+            failures.append(
+                f"Check 5: Unknown channel '{draft.channel}' on draft {draft.draft_id}"
+            )
 
         # Check 6: CAN-SPAM footer
         checks_run += 1

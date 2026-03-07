@@ -45,9 +45,13 @@ def guard_001_rejection_check(
 
     for f in feedback_path.glob("*.md"):
         try:
+            # Use file modification time for window filtering
+            file_mtime = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc)
+            if file_mtime < cutoff:
+                continue
+
             text = f.read_text(encoding="utf-8")
             if contact_id in text and "REJECTED" in text:
-                # Simple date extraction from filename or content
                 rejection_count += 1
         except Exception:
             continue

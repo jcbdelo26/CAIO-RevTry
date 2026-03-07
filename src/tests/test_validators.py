@@ -48,7 +48,7 @@ def _make_draft(**overrides) -> CampaignDraft:
             "Reply STOP to unsubscribe.\n"
             "Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109"
         ),
-        channel=Channel.INSTANTLY,
+        channel=Channel.GHL,
         bookingLink=BOOKING_LINK,
         status=DraftApprovalStatus.PENDING,
         trace=CampaignDraftTrace(
@@ -216,6 +216,21 @@ class TestGate2:
         result = validate_gate2(output, exclusions, signatures)
         assert result.passed is False
         assert any("banned opener" in f.lower() for f in result.failures)
+
+    def test_deferred_channel_fails(self, exclusions, signatures):
+        """Instantly/HeyReach channels should fail Gate 2 — only GHL active."""
+        draft = _make_draft(channel=Channel.INSTANTLY)
+        output = _make_campaign_output(drafts=[draft])
+        result = validate_gate2(output, exclusions, signatures)
+        assert result.passed is False
+        assert any("deferred channel" in f.lower() for f in result.failures)
+
+    def test_ghl_channel_passes(self, exclusions, signatures):
+        """GHL channel should pass the channel routing check."""
+        draft = _make_draft(channel=Channel.GHL)
+        output = _make_campaign_output(drafts=[draft])
+        result = validate_gate2(output, exclusions, signatures)
+        assert result.passed is True
 
     def test_batch_over_200_fails(self, exclusions, signatures):
         drafts = [_make_draft(draftId=f"draft-{i}", contactId=f"u{i}@test.com") for i in range(201)]

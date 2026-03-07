@@ -90,7 +90,7 @@ def list_drafts() -> list[StoredDraft]:
         if draft:
             drafts.append(draft)
 
-    # Sort: PENDING first, then by creation time desc
+    # Sort: PENDING first, then newest first within each status group
     status_order = {
         DraftApprovalStatus.PENDING: 0,
         DraftApprovalStatus.APPROVED: 1,
@@ -98,6 +98,9 @@ def list_drafts() -> list[StoredDraft]:
         DraftApprovalStatus.REJECTED: 3,
     }
     drafts.sort(key=lambda d: (status_order.get(d.status, 9), d.created_at), reverse=False)
+    # Stable sort: first by status (ascending), then reverse by created_at within group
+    drafts.sort(key=lambda d: d.created_at, reverse=True)
+    drafts.sort(key=lambda d: status_order.get(d.status, 9))
     return drafts
 
 

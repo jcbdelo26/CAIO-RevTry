@@ -113,6 +113,30 @@ class TestGuard001:
         assert blocked is True
         assert "GUARD-001" in reason
 
+    def test_old_rejections_outside_window_pass(self, tmp_path):
+        """Rejections older than window_days should not count."""
+        import os
+        import time
+
+        feedback_dir = tmp_path / "registry"
+        pending = feedback_dir / "pending_feedback"
+        pending.mkdir(parents=True)
+        # Create 2 rejection files with old modification times (60 days ago)
+        old_time = time.time() - (60 * 86400)
+        for i in range(2):
+            f = pending / f"reject-old-{i}.md"
+            f.write_text(
+                f"contact: test@example.com\nstatus: REJECTED\nreason: old {i}"
+            )
+            os.utime(str(f), (old_time, old_time))
+        blocked, reason = guard_001_rejection_check(
+            "test@example.com",
+            feedback_dir=str(feedback_dir),
+            window_days=30,
+        )
+        assert blocked is False
+        assert reason is None
+
 
 # ── GUARD-002: Duplicate Hash ─────────────────────────────────────────────────
 
