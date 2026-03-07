@@ -21,7 +21,17 @@
 
     <table style="margin-bottom: 24px;">
         <tr><th style="width: 150px;">Contact</th><td>{{ draft.contact_id }}</td></tr>
-        <tr><th>Tier</th><td>Tier {{ draft.icp_tier }}</td></tr>
+        <tr><th>Tier</th><td>
+            {% if draft.icp_tier == '1' %}
+                <span class="badge badge-tier1">Tier 1</span>
+            {% elif draft.icp_tier == '2' %}
+                <span class="badge badge-tier2">Tier 2</span>
+            {% elif draft.icp_tier == '3' %}
+                <span class="badge badge-tier3">Tier 3</span>
+            {% else %}
+                {{ draft.icp_tier }}
+            {% endif %}
+        </td></tr>
         <tr><th>Angle</th><td>{{ draft.angle_id }}</td></tr>
         <tr><th>Channel</th><td>{{ draft.channel.value }}</td></tr>
         <tr><th>Booking Link</th><td><a href="{{ draft.booking_link }}">{{ draft.booking_link }}</a></td></tr>
@@ -32,6 +42,21 @@
         {% if draft.rejected_at %}
         <tr><th>Rejected</th><td>{{ draft.rejected_at }}</td></tr>
         <tr><th>Rejection Reason</th><td>{{ draft.rejection_reason }}</td></tr>
+        {% endif %}
+        {% if draft.ghl_push_result %}
+        <tr><th>GHL Push</th><td>
+            {% if draft.ghl_push_result.status == 'pushed' %}
+                <span class="badge badge-ghl-pushed">Pushed</span>
+                {% if draft.ghl_push_result.ghl_contact_id %}
+                    — Contact: {{ draft.ghl_push_result.ghl_contact_id[:12] }}...
+                {% endif %}
+            {% else %}
+                <span class="badge badge-ghl-failed">Failed</span>
+                {% if draft.ghl_push_result.error %}
+                    — {{ draft.ghl_push_result.error }}
+                {% endif %}
+            {% endif %}
+        </td></tr>
         {% endif %}
     </table>
 

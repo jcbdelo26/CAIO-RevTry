@@ -5,10 +5,75 @@
 {% block content %}
 <h2 style="margin-bottom: 16px;">Campaign Drafts</h2>
 
+<!-- Summary Cards -->
+<div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+    <div class="stat-card">
+        <div class="count">{{ drafts|length }}</div>
+        <div class="label">Total</div>
+    </div>
+    <div class="stat-card">
+        <div class="count" style="color: #856404;">{{ drafts|selectattr('status.value', 'equalto', 'PENDING')|list|length }}</div>
+        <div class="label">Pending</div>
+    </div>
+    <div class="stat-card">
+        <div class="count" style="color: #155724;">{{ drafts|selectattr('status.value', 'equalto', 'APPROVED')|list|length }}</div>
+        <div class="label">Approved</div>
+    </div>
+    <div class="stat-card">
+        <div class="count" style="color: #721c24;">{{ drafts|selectattr('status.value', 'equalto', 'REJECTED')|list|length }}</div>
+        <div class="label">Rejected</div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+    <form method="GET" action="/" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <select name="tier">
+            <option value="">All Tiers</option>
+            <option value="1" {% if filter_tier == '1' %}selected{% endif %}>Tier 1</option>
+            <option value="2" {% if filter_tier == '2' %}selected{% endif %}>Tier 2</option>
+            <option value="3" {% if filter_tier == '3' %}selected{% endif %}>Tier 3</option>
+        </select>
+        <select name="status">
+            <option value="">All Status</option>
+            <option value="PENDING" {% if filter_status == 'PENDING' %}selected{% endif %}>Pending</option>
+            <option value="APPROVED" {% if filter_status == 'APPROVED' %}selected{% endif %}>Approved</option>
+            <option value="REJECTED" {% if filter_status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+        </select>
+        <select name="channel">
+            <option value="">All Channels</option>
+            <option value="instantly" {% if filter_channel == 'instantly' %}selected{% endif %}>Instantly</option>
+            <option value="ghl" {% if filter_channel == 'ghl' %}selected{% endif %}>GHL</option>
+            <option value="heyreach" {% if filter_channel == 'heyreach' %}selected{% endif %}>HeyReach</option>
+        </select>
+        <input type="text" name="search" placeholder="Search contact/subject..." value="{{ search or '' }}">
+        <button type="submit" class="btn" style="background:#007bff;color:white;">Filter</button>
+        <a href="/" class="btn" style="background:#6c757d;color:white;text-decoration:none;">Clear</a>
+    </form>
+</div>
+
 {% if drafts %}
+
+<!-- Batch Actions -->
+<div class="batch-bar">
+    <form method="POST" action="/drafts/batch/approve" style="display:inline;">
+        <input type="hidden" name="draft_ids" class="batch-ids" value="">
+        <button type="submit" class="btn btn-approve">Approve Selected</button>
+    </form>
+    <form method="POST" action="/drafts/batch/reject" style="display:inline;">
+        <input type="hidden" name="draft_ids" class="batch-ids" value="">
+        <input type="hidden" name="reason" value="Batch rejected">
+        <button type="submit" class="btn btn-reject">Reject Selected</button>
+    </form>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin-left:8px;">
+        <input type="checkbox" onchange="toggleAll(this)"> Select All
+    </label>
+</div>
+
 <table>
     <thead>
         <tr>
+            <th style="width:30px;"></th>
             <th>Status</th>
             <th>Contact</th>
             <th>Tier</th>
@@ -24,6 +89,11 @@
         <tr>
             <td>
                 {% if draft.status.value == 'PENDING' %}
+                <input type="checkbox" class="draft-check" value="{{ draft.draft_id }}" onchange="updateSelectedIds()">
+                {% endif %}
+            </td>
+            <td>
+                {% if draft.status.value == 'PENDING' %}
                     <span class="badge badge-pending">PENDING</span>
                 {% elif draft.status.value == 'APPROVED' %}
                     <span class="badge badge-approved">APPROVED</span>
@@ -32,7 +102,17 @@
                 {% endif %}
             </td>
             <td>{{ draft.contact_id }}</td>
-            <td>Tier {{ draft.icp_tier }}</td>
+            <td>
+                {% if draft.icp_tier == '1' %}
+                    <span class="badge badge-tier1">Tier 1</span>
+                {% elif draft.icp_tier == '2' %}
+                    <span class="badge badge-tier2">Tier 2</span>
+                {% elif draft.icp_tier == '3' %}
+                    <span class="badge badge-tier3">Tier 3</span>
+                {% else %}
+                    <span class="badge">{{ draft.icp_tier }}</span>
+                {% endif %}
+            </td>
             <td>{{ draft.angle_id }}</td>
             <td>{{ draft.subject }}</td>
             <td>{{ draft.channel.value }}</td>
@@ -46,7 +126,7 @@
 </table>
 {% else %}
 <div class="card">
-    <p>No drafts yet. Run the pipeline to generate campaign drafts.</p>
+    <p>No drafts match your filters. <a href="/">Clear filters</a> or run the pipeline to generate campaign drafts.</p>
 </div>
 {% endif %}
 {% endblock %}

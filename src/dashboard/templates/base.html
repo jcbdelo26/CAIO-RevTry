@@ -17,6 +17,11 @@
         .badge-pending { background: #fff3cd; color: #856404; }
         .badge-approved { background: #d4edda; color: #155724; }
         .badge-rejected { background: #f8d7da; color: #721c24; }
+        .badge-tier1 { background: #d4edda; color: #155724; }
+        .badge-tier2 { background: #cce5ff; color: #004085; }
+        .badge-tier3 { background: #fff3cd; color: #856404; }
+        .badge-ghl-pushed { background: #d4edda; color: #155724; }
+        .badge-ghl-failed { background: #f8d7da; color: #721c24; }
         .btn { display: inline-block; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; text-decoration: none; }
         .btn-approve { background: #28a745; color: white; }
         .btn-reject { background: #dc3545; color: white; }
@@ -27,7 +32,39 @@
         th { background: #f8f9fa; font-weight: 600; font-size: 0.85em; text-transform: uppercase; color: #666; }
         .card { background: white; border-radius: 8px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .email-preview { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 4px; padding: 16px; white-space: pre-wrap; font-family: monospace; font-size: 0.9em; line-height: 1.5; }
+        .stat-card { background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex: 1; min-width: 120px; }
+        .stat-card .count { font-size: 2em; font-weight: 700; }
+        .stat-card .label { color: #666; font-size: 0.85em; margin-top: 4px; }
+        .filter-bar { background: white; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .filter-bar select, .filter-bar input[type="text"] { padding: 6px 10px; border-radius: 4px; border: 1px solid #ddd; font-size: 0.9em; }
+        .filter-bar input[type="text"] { width: 200px; }
+        .batch-bar { margin-bottom: 12px; display: flex; gap: 8px; align-items: center; }
+        @media (max-width: 768px) {
+            .container { padding: 12px; }
+            table { display: block; overflow-x: auto; }
+            th, td { padding: 8px 10px; font-size: 0.85em; }
+            .email-preview { font-size: 0.8em; }
+            .filter-bar { flex-direction: column; align-items: stretch; }
+            .filter-bar input[type="text"] { width: 100%; }
+        }
     </style>
+    <script>
+    function toggleAll(source) {
+        var checkboxes = document.querySelectorAll('input.draft-check');
+        for (var i = 0; i < checkboxes.length; i++) {
+            checkboxes[i].checked = source.checked;
+        }
+        updateSelectedIds();
+    }
+    function updateSelectedIds() {
+        var checked = document.querySelectorAll('input.draft-check:checked');
+        var ids = Array.from(checked).map(function(cb) { return cb.value; });
+        var fields = document.querySelectorAll('input.batch-ids');
+        for (var i = 0; i < fields.length; i++) {
+            fields[i].value = ids.join(',');
+        }
+    }
+    </script>
 </head>
 <body>
     <header>

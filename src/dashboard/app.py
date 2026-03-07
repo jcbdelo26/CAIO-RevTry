@@ -1,16 +1,19 @@
 """FastAPI approval dashboard for campaign drafts.
 
 Endpoints:
-- GET /        — HTML dashboard with draft list (PENDING first)
+- GET /        — HTML dashboard with draft list, filters, summary counts
 - GET /drafts  — JSON array of all drafts
 - GET /drafts/{id} — HTML detail with email preview + approve/reject buttons
-- POST /drafts/{id}/approve — Mark APPROVED, record timestamp
+- POST /drafts/{id}/approve — Mark APPROVED, push to GHL, record timestamp
 - POST /drafts/{id}/reject  — Mark REJECTED, write feedback file
+- POST /drafts/batch/approve — Batch approve selected drafts
+- POST /drafts/batch/reject  — Batch reject selected drafts
 """
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -29,18 +32,45 @@ from dashboard.storage import (
 )
 from integrations.ghl_service import push_approved_draft_to_ghl
 
-app = FastAPI(title="RevTry Dashboard", version="0.1.0")
+app = FastAPI(title="RevTry Dashboard", version="0.2.0")
 
 templates_dir = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
 
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request) -> HTMLResponse:
+async def dashboard(
+    request: Request,
+    tier: Optional[str] = None,
+    status: Optional[str] = None,
+    channel: Optional[str] = None,
+    search: Optional[str] = None,
+) -> HTMLResponse:
     drafts = list_drafts()
+
+    if tier:
+        drafts = [d for d in drafts if d.icp_tier == tier]
+    if status:
+        drafts = [d for d in drafts if d.status.value == status]
+    if channel:
+        drafts = [d for d in drafts if d.channel.value == channel]
+    if search:
+        q = search.lower()
+        drafts = [
+            d for d in drafts
+            if q in d.contact_id.lower() or q in d.subject.lower()
+        ]
+
     return templates.TemplateResponse(
         "dashboard.html",
-        {"request": request, "drafts": drafts},
+        {
+            "request": request,
+            "drafts": drafts,
+            "filter_tier": tier or "",
+            "filter_status": status or "",
+            "filter_channel": channel or "",
+            "search": search or "",
+        },
     )
 
 
@@ -48,6 +78,26 @@ async def dashboard(request: Request) -> HTMLResponse:
 async def list_drafts_api():
     drafts = list_drafts()
     return [d.model_dump(by_alias=True) for d in drafts]
+
+
+# Batch routes MUST be defined before {draft_id} routes to avoid path conflicts
+@app.post("/drafts/batch/approve")
+async def batch_approve(draft_ids: str = Form("")):
+    ids = [i.strip() for i in draft_ids.split(",") if i.strip()]
+    for did in ids:
+        draft = approve_draft(did)
+        if draft:
+            ghl_result = await push_approved_draft_to_ghl(draft)
+            update_draft_ghl_result(did, ghl_result)
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/drafts/batch/reject")
+async def batch_reject(draft_ids: str = Form(""), reason: str = Form("")):
+    ids = [i.strip() for i in draft_ids.split(",") if i.strip()]
+    for did in ids:
+        reject_draft(did, reason=reason)
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/drafts/{draft_id}", response_class=HTMLResponse)
