@@ -20,7 +20,14 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from dashboard.storage import approve_draft, get_draft, list_drafts, reject_draft
+from dashboard.storage import (
+    approve_draft,
+    get_draft,
+    list_drafts,
+    reject_draft,
+    update_draft_ghl_result,
+)
+from integrations.ghl_service import push_approved_draft_to_ghl
 
 app = FastAPI(title="RevTry Dashboard", version="0.1.0")
 
@@ -59,6 +66,11 @@ async def approve_draft_endpoint(draft_id: str):
     draft = approve_draft(draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
+
+    # Best-effort GHL push — approval stands even if this fails
+    ghl_result = await push_approved_draft_to_ghl(draft)
+    update_draft_ghl_result(draft_id, ghl_result)
+
     return RedirectResponse(url=f"/drafts/{draft_id}", status_code=303)
 
 

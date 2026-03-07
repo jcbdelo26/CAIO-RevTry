@@ -1,0 +1,79 @@
+"""GHL service layer — encapsulates the 'on approval' workflow.
+
+When a draft is approved, upsert the contact in GHL and create a follow-up task.
+Best-effort: if GHL push fails, return an error dict instead of raising.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Optional
+
+from integrations.ghl_client import GHLClient
+from models.schemas import StoredDraft
+
+logger = logging.getLogger(__name__)
+
+
+async def push_approved_draft_to_ghl(
+    draft: StoredDraft,
+    ghl: Optional[GHLClient] = None,
+) -> dict[str, Any]:
+    """Upsert contact in GHL and create a follow-up task.
+
+    Returns:
+        {"status": "pushed", "ghl_contact_id": ..., "ghl_task_id": ...}
+        or {"status": "ghl_push_failed", "error": ...}
+    """
+    owns_client = ghl is None
+    if ghl is None:
+        ghl = GHLClient()
+
+    try:
+        # Parse contact info from the draft
+        email = draft.contact_id  # contact_id is email in current pipeline
+        first_name = ""
+        last_name = ""
+        company_name = ""
+
+        # Try to extract name/company from the draft body (first line greeting)
+        # For now, pass email as the primary identifier
+        upsert_result = await ghl.upsert_contact(
+            email=email,
+            first_name=first_name,
+            last_name=last_name,
+            company_name=company_name,
+            tags=["revtry-approved"],
+        )
+
+        contact = upsert_result.get("contact", {})
+        ghl_contact_id = contact.get("id", "")
+
+        # Create follow-up task
+        task_result: dict[str, Any] = {}
+        if ghl_contact_id:
+            task_result = await ghl.create_task(
+                contact_id=ghl_contact_id,
+                title=f"Follow up: {draft.subject}",
+                description=(
+                    f"Approved draft for {draft.contact_id}\n"
+                    f"Tier: {draft.icp_tier} | Channel: {draft.channel.value}\n"
+                    f"Angle: {draft.angle_id}"
+                ),
+            )
+
+        return {
+            "status": "pushed",
+            "ghl_contact_id": ghl_contact_id,
+            "ghl_task_id": task_result.get("task", {}).get("id", ""),
+        }
+
+    except Exception as exc:
+        logger.warning("GHL push failed for draft %s: %s", draft.draft_id, exc)
+        return {
+            "status": "ghl_push_failed",
+            "error": str(exc),
+        }
+    finally:
+        if owns_client:
+            await ghl.close()

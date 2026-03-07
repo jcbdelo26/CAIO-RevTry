@@ -151,3 +151,19 @@ def reject_draft(
     )
 
     return draft
+
+
+def update_draft_ghl_result(draft_id: str, result: dict) -> Optional[StoredDraft]:
+    """Store the GHL push result on an existing draft."""
+    draft = get_draft(draft_id)
+    if not draft:
+        return None
+
+    draft.ghl_push_result = result
+
+    draft_path = _drafts_dir() / f"{draft_id}.json"
+    draft_path.write_text(
+        json.dumps(draft.model_dump(by_alias=True), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return draft

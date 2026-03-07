@@ -254,6 +254,7 @@ class StoredDraft(BaseModel):
     approved_at: Optional[str] = Field(None, alias="approvedAt")
     rejected_at: Optional[str] = Field(None, alias="rejectedAt")
     rejection_reason: Optional[str] = Field(None, alias="rejectionReason")
+    ghl_push_result: Optional[dict] = Field(None, alias="ghlPushResult")
 
     model_config = {"populate_by_name": True}
 
