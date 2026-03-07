@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob"
+    ],
+    "ask": [
+      "Bash",
+      "Edit",
+      "Write"
+    ],
+    "defaultMode": "ask"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Review this bash command for safety. Reject if it: deletes files destructively (rm -rf, git clean -f), force-pushes to remote, drops databases, or modifies system files outside the project directory. Return {\"decision\": \"allow\"} or {\"decision\": \"block\", \"reason\": \"explanation\"}",
+            "model": "claude-haiku-4-5-20251001"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"continue\": true}'",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Session complete. Run /commit to save your work.'",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

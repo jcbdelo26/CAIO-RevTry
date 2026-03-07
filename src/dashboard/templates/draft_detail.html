@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Draft {{ draft.draft_id[:8] }} — RevTry Dashboard{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <a href="/" style="color: #007bff; text-decoration: none;">&larr; Back to Drafts</a>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2>Draft {{ draft.draft_id[:8] }}...</h2>
+        {% if draft.status.value == 'PENDING' %}
+            <span class="badge badge-pending">PENDING</span>
+        {% elif draft.status.value == 'APPROVED' %}
+            <span class="badge badge-approved">APPROVED</span>
+        {% else %}
+            <span class="badge badge-rejected">REJECTED</span>
+        {% endif %}
+    </div>
+
+    <table style="margin-bottom: 24px;">
+        <tr><th style="width: 150px;">Contact</th><td>{{ draft.contact_id }}</td></tr>
+        <tr><th>Tier</th><td>Tier {{ draft.icp_tier }}</td></tr>
+        <tr><th>Angle</th><td>{{ draft.angle_id }}</td></tr>
+        <tr><th>Channel</th><td>{{ draft.channel.value }}</td></tr>
+        <tr><th>Booking Link</th><td><a href="{{ draft.booking_link }}">{{ draft.booking_link }}</a></td></tr>
+        <tr><th>Created</th><td>{{ draft.created_at }}</td></tr>
+        {% if draft.approved_at %}
+        <tr><th>Approved</th><td>{{ draft.approved_at }}</td></tr>
+        {% endif %}
+        {% if draft.rejected_at %}
+        <tr><th>Rejected</th><td>{{ draft.rejected_at }}</td></tr>
+        <tr><th>Rejection Reason</th><td>{{ draft.rejection_reason }}</td></tr>
+        {% endif %}
+    </table>
+
+    <h3 style="margin-bottom: 8px;">Subject</h3>
+    <p style="margin-bottom: 16px; font-weight: 600;">{{ draft.subject }}</p>
+
+    <h3 style="margin-bottom: 8px;">Email Preview</h3>
+    <div class="email-preview">{{ draft.body }}</div>
+
+    {% if draft.status.value == 'PENDING' %}
+    <div style="margin-top: 24px; display: flex; gap: 12px;">
+        <form method="POST" action="/drafts/{{ draft.draft_id }}/approve">
+            <button type="submit" class="btn btn-approve">Approve</button>
+        </form>
+        <form method="POST" action="/drafts/{{ draft.draft_id }}/reject" style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" name="reason" placeholder="Rejection reason..." style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 300px;">
+            <button type="submit" class="btn btn-reject">Reject</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

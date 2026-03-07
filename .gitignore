@@ -1,0 +1,15 @@
+# Environment (contains API keys)
+.env
+
+# Generated outputs
+src/outputs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
