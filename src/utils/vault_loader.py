@@ -190,13 +190,18 @@ class TierDefinitions:
 def load_tier_definitions() -> TierDefinitions:
     return TierDefinitions(
         title_buckets={
-            "tier_1": ["ceo", "founder", "president", "coo", "owner", "managing partner"],
+            "tier_1": ["ceo", "founder", "president", "coo", "owner", "managing partner",
+                       "chief executive", "chief operating"],
             "tier_2": ["cto", "cio", "chief of staff", "vp operations", "vp strategy",
-                       "vp innovation", "managing director"],
+                       "vp innovation", "managing director", "vp sales", "vp marketing",
+                       "vp business", "vp growth", "vp revenue", "vp customer",
+                       "chief technology", "chief information", "chief marketing",
+                       "chief revenue"],
             "tier_3": ["director ops", "director it", "director strategy",
-                       "vp engineering", "head of ai", "head of data"],
+                       "vp engineering", "head of ai", "head of data",
+                       "director of", "head of", "vp "],
             "manager": ["operations manager", "it manager", "project manager",
-                        "general manager"],
+                        "general manager", "account manager", "program manager"],
         },
         title_points={
             "tier_1": 25,
@@ -207,11 +212,16 @@ def load_tier_definitions() -> TierDefinitions:
         },
         industry_tiers={
             "tier_1": ["agencies", "staffing", "consulting", "law", "cpa",
-                       "real estate", "e-commerce", "ecommerce"],
+                       "real estate", "e-commerce", "ecommerce", "marketing",
+                       "advertising", "recruiting", "human resources",
+                       "management consulting", "legal services"],
             "tier_2": ["b2b saas", "saas", "it services", "healthcare",
-                       "financial services"],
+                       "financial services", "information technology",
+                       "computer software", "internet", "insurance",
+                       "banking", "accounting"],
             "tier_3": ["manufacturing", "logistics", "construction",
-                       "home services"],
+                       "home services", "retail", "hospitality",
+                       "transportation", "automotive", "food"],
         },
         industry_points={
             "tier_1": 20,
