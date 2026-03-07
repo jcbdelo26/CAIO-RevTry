@@ -1,20 +1,16 @@
-"""Tests for dispatch orchestrator — full flow, rate limit, circuit breaker, dedup."""
+"""Tests for dispatch orchestrator — GHL-only dispatch, deferred channels, safety checks."""
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from dashboard.storage import save_draft, approve_draft
+from dashboard.storage import save_draft, approve_draft, update_draft_ghl_result
 from models.schemas import (
     CampaignDraft,
     CampaignDraftTrace,
     Channel,
-    DraftApprovalStatus,
 )
 from pipeline.circuit_breaker import CircuitBreaker
 from pipeline.dispatcher import dispatch_approved_drafts
@@ -27,11 +23,16 @@ def _use_tmp(tmp_path, monkeypatch):
     monkeypatch.setenv("REGISTRY_DIR", str(tmp_path / "registry"))
 
 
-def _create_approved_draft(draft_id="d-001", tier="1", channel=Channel.INSTANTLY):
-    """Create and approve a draft in storage."""
+def _create_approved_draft(
+    draft_id="d-001",
+    tier="1",
+    channel=Channel.GHL,
+    ghl_contact_id="ghl-contact-123",
+):
+    """Create, approve, and set ghl_push_result on a draft."""
     draft = CampaignDraft(
         draftId=draft_id,
-        contactId="contact-001",
+        contactId="jane@acme.com",
         icpTier=tier,
         angleId="angle-1",
         subject="AI Strategy for You",
@@ -46,16 +47,18 @@ def _create_approved_draft(draft_id="d-001", tier="1", channel=Channel.INSTANTLY
     )
     save_draft(draft)
     approve_draft(draft_id)
+    if ghl_contact_id:
+        update_draft_ghl_result(draft_id, {"ghl_contact_id": ghl_contact_id})
     return draft
 
 
 class TestDispatcher:
     @pytest.mark.asyncio
-    async def test_dispatches_approved_draft(self, tmp_path):
+    async def test_dispatches_ghl_draft(self, tmp_path):
         _create_approved_draft()
-        mock_instantly = MagicMock()
-        mock_instantly.send_email = AsyncMock(return_value={"id": "msg-1"})
-        mock_instantly.close = AsyncMock()
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock(return_value={"messageId": "msg-1"})
+        mock_ghl.close = AsyncMock()
 
         cb = CircuitBreaker(state_path=tmp_path / "cb.json")
         rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
@@ -64,31 +67,85 @@ class TestDispatcher:
             tier_restriction=1,
             rate_limiter=rl,
             circuit_breaker=cb,
-            instantly=mock_instantly,
+            ghl=mock_ghl,
         )
 
         assert result.dispatched == 1
         assert result.failed == 0
-        mock_instantly.send_email.assert_called_once()
+        mock_ghl.send_email.assert_called_once()
+        call_kwargs = mock_ghl.send_email.call_args.kwargs
+        assert call_kwargs["contact_id"] == "ghl-contact-123"
+        assert call_kwargs["subject"] == "AI Strategy for You"
 
     @pytest.mark.asyncio
-    async def test_rate_limit_stops_dispatch(self, tmp_path):
-        _create_approved_draft()
-        mock_instantly = MagicMock()
-        mock_instantly.send_email = AsyncMock()
-        mock_instantly.close = AsyncMock()
+    async def test_ghl_dispatch_fails_without_contact_id(self, tmp_path):
+        _create_approved_draft(draft_id="d-no-ghl", ghl_contact_id=None)
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock()
+        mock_ghl.close = AsyncMock()
 
         cb = CircuitBreaker(state_path=tmp_path / "cb.json")
         rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
-        # Exhaust the limit
-        for _ in range(5):
-            rl.record_send("instantly")
 
         result = await dispatch_approved_drafts(
             tier_restriction=1,
             rate_limiter=rl,
             circuit_breaker=cb,
-            instantly=mock_instantly,
+            ghl=mock_ghl,
+        )
+
+        assert result.dispatched == 0
+        assert result.failed == 1
+        assert "No GHL contact ID" in result.errors[0]
+        mock_ghl.send_email.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_instantly_channel_deferred(self, tmp_path):
+        _create_approved_draft(draft_id="d-inst", channel=Channel.INSTANTLY)
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        result = await dispatch_approved_drafts(
+            tier_restriction=1,
+            rate_limiter=rl,
+            circuit_breaker=cb,
+        )
+
+        assert result.dispatched == 0
+        assert result.skipped_deferred_channel == 1
+
+    @pytest.mark.asyncio
+    async def test_heyreach_channel_deferred(self, tmp_path):
+        _create_approved_draft(draft_id="d-hr", channel=Channel.HEYREACH)
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        result = await dispatch_approved_drafts(
+            tier_restriction=1,
+            rate_limiter=rl,
+            circuit_breaker=cb,
+        )
+
+        assert result.dispatched == 0
+        assert result.skipped_deferred_channel == 1
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_stops_dispatch(self, tmp_path):
+        _create_approved_draft()
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock()
+        mock_ghl.close = AsyncMock()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+        for _ in range(5):
+            rl.record_send("ghl")
+
+        result = await dispatch_approved_drafts(
+            tier_restriction=1,
+            rate_limiter=rl,
+            circuit_breaker=cb,
+            ghl=mock_ghl,
         )
 
         assert result.dispatched == 0
@@ -97,19 +154,19 @@ class TestDispatcher:
     @pytest.mark.asyncio
     async def test_circuit_breaker_skips(self, tmp_path):
         _create_approved_draft()
-        mock_instantly = MagicMock()
-        mock_instantly.send_email = AsyncMock()
-        mock_instantly.close = AsyncMock()
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock()
+        mock_ghl.close = AsyncMock()
 
         cb = CircuitBreaker(state_path=tmp_path / "cb.json")
-        cb.trip_all()  # Trip all breakers
+        cb.trip_all()
         rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
 
         result = await dispatch_approved_drafts(
             tier_restriction=1,
             rate_limiter=rl,
             circuit_breaker=cb,
-            instantly=mock_instantly,
+            ghl=mock_ghl,
         )
 
         assert result.dispatched == 0
@@ -118,18 +175,18 @@ class TestDispatcher:
     @pytest.mark.asyncio
     async def test_tier_restriction(self, tmp_path):
         _create_approved_draft(draft_id="d-t2", tier="2")
-        mock_instantly = MagicMock()
-        mock_instantly.send_email = AsyncMock()
-        mock_instantly.close = AsyncMock()
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock()
+        mock_ghl.close = AsyncMock()
 
         cb = CircuitBreaker(state_path=tmp_path / "cb.json")
         rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
 
         result = await dispatch_approved_drafts(
-            tier_restriction=1,  # Only tier 1
+            tier_restriction=1,
             rate_limiter=rl,
             circuit_breaker=cb,
-            instantly=mock_instantly,
+            ghl=mock_ghl,
         )
 
         assert result.dispatched == 0
@@ -150,11 +207,11 @@ class TestDispatcher:
     @pytest.mark.asyncio
     async def test_dedup_skips_duplicate(self, tmp_path):
         _create_approved_draft(draft_id="d-dup1")
-        _create_approved_draft(draft_id="d-dup2")  # Same content, different ID
+        _create_approved_draft(draft_id="d-dup2")
 
-        mock_instantly = MagicMock()
-        mock_instantly.send_email = AsyncMock(return_value={"id": "msg-1"})
-        mock_instantly.close = AsyncMock()
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock(return_value={"messageId": "msg-1"})
+        mock_ghl.close = AsyncMock()
 
         cb = CircuitBreaker(state_path=tmp_path / "cb.json")
         rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
@@ -163,9 +220,9 @@ class TestDispatcher:
             tier_restriction=1,
             rate_limiter=rl,
             circuit_breaker=cb,
-            instantly=mock_instantly,
+            ghl=mock_ghl,
         )
 
-        # First dispatches, second should be caught by contact window dedup
+        # First dispatches, second caught by contact window dedup
         assert result.dispatched == 1
         assert result.skipped_dedup >= 1

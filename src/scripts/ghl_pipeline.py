@@ -134,7 +134,7 @@ async def run_ghl_pipeline(
     campaign_output = craft_campaigns(
         task_id=f"{task_id}_campaign",
         records=qualified_seg,
-        is_cold=True,
+        is_cold=False,  # GHL contacts are warm — route to channel="ghl"
     )
     print(f"  Drafts generated: {campaign_output.count}")
 

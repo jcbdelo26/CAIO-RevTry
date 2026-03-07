@@ -104,6 +104,72 @@ class TestGHLClientUpsert:
         assert result["contact"]["id"] == "ghl-contact-3"
 
 
+class TestGHLClientSendEmail:
+    @pytest.mark.asyncio
+    async def test_send_email_success(self):
+        client = GHLClient(api_key="test-key", location_id="loc-123")
+        mock_http = AsyncMock()
+        mock_http.is_closed = False
+        mock_http.request = AsyncMock(return_value=_mock_response(
+            200, {"messageId": "msg-1", "status": "sent"}
+        ))
+        client._client = mock_http
+
+        result = await client.send_email(
+            contact_id="ghl-contact-1",
+            to_email="jane@acme.com",
+            subject="AI Strategy",
+            body="Hi Jane, let's discuss AI.",
+        )
+
+        assert result["messageId"] == "msg-1"
+        call_args = mock_http.request.call_args
+        payload = call_args.kwargs.get("json") or call_args[1].get("json")
+        assert payload["type"] == "Email"
+        assert payload["contactId"] == "ghl-contact-1"
+        assert payload["subject"] == "AI Strategy"
+
+    @pytest.mark.asyncio
+    async def test_send_email_retry_on_500(self):
+        client = GHLClient(api_key="test-key", location_id="loc-123")
+        mock_http = AsyncMock()
+        mock_http.is_closed = False
+
+        fail_resp = _mock_response(500)
+        ok_resp = _mock_response(200, {"messageId": "msg-2"})
+        mock_http.request = AsyncMock(side_effect=[fail_resp, ok_resp])
+        client._client = mock_http
+
+        result = await client.send_email(
+            contact_id="ghl-contact-1",
+            to_email="jane@acme.com",
+            subject="Test",
+            body="Body",
+        )
+        assert result["messageId"] == "msg-2"
+        assert mock_http.request.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_send_email_uses_contact_id(self):
+        client = GHLClient(api_key="test-key", location_id="loc-123")
+        mock_http = AsyncMock()
+        mock_http.is_closed = False
+        mock_http.request = AsyncMock(return_value=_mock_response(200, {}))
+        client._client = mock_http
+
+        await client.send_email(
+            contact_id="ghl-999",
+            to_email="test@test.com",
+            subject="Sub",
+            body="Body",
+        )
+
+        call_args = mock_http.request.call_args
+        payload = call_args.kwargs.get("json") or call_args[1].get("json")
+        assert payload["contactId"] == "ghl-999"
+        assert "/conversations/messages" in call_args[0][1]
+
+
 class TestGHLClientTask:
     @pytest.mark.asyncio
     async def test_create_task_success(self):

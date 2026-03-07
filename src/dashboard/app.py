@@ -179,6 +179,7 @@ async def dispatch_run():
         "skipped_rate_limit": result.skipped_rate_limit,
         "skipped_circuit_breaker": result.skipped_circuit_breaker,
         "skipped_tier": result.skipped_tier,
+        "skipped_deferred_channel": result.skipped_deferred_channel,
         "failed": result.failed,
         "errors": result.errors,
     }

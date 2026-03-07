@@ -1,21 +1,22 @@
-"""Dispatch Orchestrator — routes APPROVED drafts to outbound channels.
+"""Dispatch Orchestrator — routes APPROVED drafts to GHL warm email.
 
 Reads APPROVED drafts from storage, applies safety checks (dedup, rate limit,
-circuit breaker), dispatches to the correct channel, and marks drafts DISPATCHED.
+circuit breaker), dispatches via GHL Conversations API, marks drafts DISPATCHED.
 
 RAMP restriction: Tier 1 only, ≤5/day per channel.
+
+DEFERRED: Instantly (cold email) and HeyReach (LinkedIn) — will be enabled
+after GHL dispatch is verified in production.
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from dashboard.storage import get_draft, list_drafts, mark_dispatched
 from integrations.ghl_client import GHLClient
-from integrations.heyreach_client import HeyReachClient
-from integrations.instantly_client import InstantlyClient
 from models.schemas import DraftApprovalStatus
 from pipeline.circuit_breaker import CircuitBreaker
 from pipeline.dedup import check_dedup, compute_draft_hash, record_dispatch, record_hash
@@ -29,6 +30,7 @@ class DispatchResult:
     skipped_rate_limit: int = 0
     skipped_circuit_breaker: int = 0
     skipped_tier: int = 0
+    skipped_deferred_channel: int = 0
     failed: int = 0
     errors: list[str] = field(default_factory=list)
 
@@ -37,27 +39,19 @@ async def dispatch_approved_drafts(
     tier_restriction: int | None = None,
     rate_limiter: DailyRateLimiter | None = None,
     circuit_breaker: CircuitBreaker | None = None,
-    instantly: InstantlyClient | None = None,
     ghl: GHLClient | None = None,
-    heyreach: HeyReachClient | None = None,
-    from_email: str | None = None,
-    heyreach_campaign_id: str | None = None,
 ) -> DispatchResult:
-    """Load APPROVED drafts, apply safety checks, dispatch to channels."""
+    """Load APPROVED drafts, apply safety checks, dispatch via GHL."""
     result = DispatchResult()
 
     tier_limit = tier_restriction or int(os.environ.get("DISPATCH_TIER_RESTRICTION", "1"))
-    sender_email = from_email or os.environ.get("INSTANTLY_FROM_EMAIL", "")
-    hr_campaign = heyreach_campaign_id or os.environ.get("HEYREACH_CAMPAIGN_ID", "")
 
     if rate_limiter is None:
         rate_limiter = DailyRateLimiter()
     if circuit_breaker is None:
         circuit_breaker = CircuitBreaker()
 
-    own_instantly = instantly is None
     own_ghl = ghl is None
-    own_heyreach = heyreach is None
 
     # Load APPROVED drafts
     all_drafts = list_drafts()
@@ -68,6 +62,11 @@ async def dispatch_approved_drafts(
 
     for draft in approved:
         channel = draft.channel.value if hasattr(draft.channel, "value") else draft.channel
+
+        # DEFERRED: Skip Instantly and HeyReach channels
+        if channel in ("instantly", "heyreach"):
+            result.skipped_deferred_channel += 1
+            continue
 
         # RAMP: Tier restriction
         try:
@@ -100,43 +99,32 @@ async def dispatch_approved_drafts(
             result.skipped_dedup += 1
             continue
 
-        # Dispatch to channel
+        # Dispatch via GHL
         try:
-            if channel == "instantly":
-                if own_instantly and instantly is None:
-                    instantly = InstantlyClient()
-                await circuit_breaker.call(
-                    "instantly",
-                    instantly.send_email,
-                    from_email=sender_email,
-                    to_email=draft.contact_id,  # TODO: resolve contact email
-                    subject=draft.subject,
-                    body=draft.body,
+            if own_ghl and ghl is None:
+                ghl = GHLClient()
+
+            # Resolve GHL contact ID from approval-time push result
+            stored = get_draft(draft.draft_id)
+            ghl_contact_id = ""
+            if stored and stored.ghl_push_result:
+                ghl_contact_id = stored.ghl_push_result.get("ghl_contact_id", "")
+
+            if not ghl_contact_id:
+                result.failed += 1
+                result.errors.append(
+                    f"{draft.draft_id}: No GHL contact ID — was draft approved via dashboard?"
                 )
-            elif channel == "ghl":
-                if own_ghl and ghl is None:
-                    ghl = GHLClient()
-                await circuit_breaker.call(
-                    "ghl",
-                    ghl.upsert_contact,
-                    email=draft.contact_id,
-                    first_name="",
-                    last_name="",
-                    company_name="",
-                    tags=[f"revtry-sent-ghl"],
-                )
-            elif channel == "heyreach":
-                if own_heyreach and heyreach is None:
-                    heyreach = HeyReachClient()
-                await circuit_breaker.call(
-                    "heyreach",
-                    heyreach.add_lead_to_campaign,
-                    campaign_id=hr_campaign,
-                    linkedin_url="",  # TODO: resolve from enrichment data
-                    first_name="",
-                    last_name="",
-                    company="",
-                )
+                continue
+
+            await circuit_breaker.call(
+                "ghl",
+                ghl.send_email,
+                contact_id=ghl_contact_id,
+                to_email=draft.contact_id,
+                subject=draft.subject,
+                body=draft.body,
+            )
 
             # Success — mark dispatched and record
             mark_dispatched(draft.draft_id, channel)
@@ -152,11 +140,7 @@ async def dispatch_approved_drafts(
             mark_dispatched(draft.draft_id, channel, error=str(e))
 
     # Cleanup
-    if own_instantly and instantly:
-        await instantly.close()
     if own_ghl and ghl:
         await ghl.close()
-    if own_heyreach and heyreach:
-        await heyreach.close()
 
     return result

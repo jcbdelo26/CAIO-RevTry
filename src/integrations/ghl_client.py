@@ -1,4 +1,4 @@
-"""GoHighLevel API client for contact upsert and task creation.
+"""GoHighLevel API client for contact upsert, task creation, and email dispatch.
 
 Auth: Authorization Bearer header. Version: 2021-07-28.
 Rate limit: 100 req/min. Timeout: 30s. Retry: 2x on 5xx, backoff on 429.
@@ -123,3 +123,23 @@ class GHLClient:
         return await self._request(
             "POST", f"/contacts/{contact_id}/tasks", payload
         )
+
+    async def send_email(
+        self,
+        contact_id: str,
+        to_email: str,
+        subject: str,
+        body: str,
+    ) -> dict[str, Any]:
+        """Send warm email via GHL Conversations API.
+
+        Uses POST /conversations/messages with type=Email.
+        Requires the GHL contact ID (not the email address).
+        """
+        payload: dict[str, Any] = {
+            "type": "Email",
+            "contactId": contact_id,
+            "subject": subject,
+            "body": body,
+        }
+        return await self._request("POST", "/conversations/messages", payload)
