@@ -1,6 +1,6 @@
 # PRD — RevTry: Revenue Operations Sentry
 ## ChiefAIOfficer.com
-**Version**: 2.10 | **Date**: 2026-03-09 | **Status**: Project-Root Runtime Consolidated + Task 15 Audit Chain Prioritized
+**Version**: 2.13 | **Date**: 2026-03-10 | **Status**: Phase 3F Hardening Validated — Real Pipeline Population Pending
 **Refined by**: Greenfield Coding Workflow bulletproofing process
 **Source**: `E:\CAIO RevOps Claw\RevTry_PRD.md` v1.0
 
@@ -45,7 +45,7 @@ This build now uses one authoritative project/runtime root.
 
 **Phase 0A hard gate:** Hero Outcome 1 is blocked until the external GHL MCP exposes the read capabilities required for audit and triage. No PRD section may assume audit or triage is runnable before Phase 0A passes.
 
-**Immediate operational priority after Task 3B:** With `PHASE_0A_MCP_VERIFIED_LIVE = PASSED` and `PHASE_0B_WORKSPACE_READY = PASSED`, the next runtime chain is `Task 15 -> Task 16 -> Task 17 -> Task 18 -> Task 19 -> Task 20 -> Task 21 -> Task 22`. `Task 62` / Phase 3F deployment remains queued and must not jump ahead of the Phase 0 audit/triage chain.
+**Immediate operational priority now:** Hero Outcome 1 is operationally complete. With `PHASE_0A_MCP_VERIFIED_LIVE = PASSED`, `PHASE_0B_WORKSPACE_READY = PASSED`, and `PHASE_0_TRIAGE_PASSED = PASSED`, the current same-day path is `Task 62D -> Task 63 -> Task 64 -> Task 32`. Phase 3F remains the active path until real warm drafts are generated, reviewed remotely, and approved.
 
 **Known inconsistency:** The external `manifest.json` may advertise fewer tools than `server.py` documents. Treat live discovery as the ONLY source of truth for tool availability and behavior. Treat `server.py` as the authoritative entrypoint path. Do not treat the manifest tool list as complete.
 
@@ -740,18 +740,32 @@ Log pattern in vault/feedback/agent_learnings.md
 
 **Goal:** Deploy the lean warm dashboard immediately after local/private validation so Dani can review and approve warm follow-ups remotely.
 
+**Status (2026-03-10):** Dashboard deployed and accessible at `caio-rev-try.vercel.app`. Auth works, pages render. Code hardening is validated locally (DB timeout, healthz probe, remaining route error handling, candidate-source fallback). The remaining work is operational: run the warm pipeline against real GHL data, verify deployed routes with real data, and complete Dani verification.
+
+**Deployment Architecture:**
+- Entry point: `api/index.py` (Vercel serverless function, adds `src/` to sys.path)
+- Config: `vercel.json` (routes `/(.*)`  to `api/index.py` via `@vercel/python` builder)
+- Dependencies: root `requirements.txt` (installed by Vercel at build time)
+- Auto-deploy: pushes to `origin/master` trigger Vercel auto-deploy via GitHub integration
+
 **Deliverables:**
-- Vercel deployment configuration for the warm dashboard surface
-- Deployment env inventory and runtime path strategy for outputs/registry
-- Remote review/approval route verification
-- Deployment smoke-test checklist
+- [x] Vercel deployment configuration for the warm dashboard surface
+- [x] Deployment env inventory and runtime path strategy for outputs/registry
+- [x] DB connection hardening (connect_timeout, healthz DB probe)
+- [x] Error handling for all routes (4 routes hardened with graceful fallback)
+- [x] Candidate-source fallback from validated triage output to `outputs/ghl_followup_candidates.json`
+- [ ] Pipeline data population (run orchestrator against real GHL data)
+- [ ] Remote review/approval route verification with real data
+- [ ] Deployment smoke-test checklist
 
 **Acceptance Criteria:**
-- [ ] `PHASE_3E_DEPLOY_READY` is PASSED before deployment starts
-- [ ] `/briefing` and `/followups` render correctly in deployed mode
-- [ ] Remote approve/reject actions work
-- [ ] Deployed mode runs with HTTP Basic Auth, `WARM_ONLY_MODE=true`, and Postgres persistence
+- [x] `PHASE_3E_DEPLOY_READY` is PASSED before deployment starts
+- [x] `/briefing` and `/followups` render correctly in deployed mode
+- [ ] `/briefing` and `/followups` show real data from pipeline execution
+- [ ] Remote approve/reject actions work with real drafts
+- [x] Deployed mode runs with HTTP Basic Auth, `WARM_ONLY_MODE=true`, and Postgres persistence
 - [ ] No cold-flow dependency is required for the first deployed warm MVP
+- [x] `GET /healthz` performs a real DB probe in postgres mode and returns `db=connected` or `status=degraded`
 
 ### Phase 4 — Cold-Outbound Expansion
 
@@ -834,7 +848,7 @@ Log pattern in vault/feedback/agent_learnings.md
 Overall project is complete when ALL of the following pass:
 
 - [ ] Phase 0: All 33 verification checks pass (Section 18 table) with zero failures
-- [ ] Phase 0: GHL audit completed, triage criteria approved, notification outcome recorded
+- [x] Phase 0: GHL audit completed, triage criteria approved, notification outcome recorded
 - [ ] Phase 1: ≥10 ICP-qualified campaign drafts produced, validated through 3 gates, and reviewed by Dani in the approval dashboard
 - [ ] Phase 2: shared dispatch safety chain verified; failed sends recorded as `SEND_FAILED`; circuit breaker tested and verified
 - [ ] Phase 3: daily warm briefing generated, reviewed, and manually dispatched through shared GHL safety rails
@@ -2763,7 +2777,7 @@ Everything in Phase 0 is infrastructure and the first agent run. No outbound sen
 - Campaign Craft agent with full playbook context (new session)
 - Local FastAPI dashboard (`http://localhost:8000`) with 4 routes: GET /drafts, GET /drafts/{id}, POST /drafts/{id}/approve, POST /drafts/{id}/reject
 - First batch ICP-qualified campaign drafts → approval queue
-- Hero Outcome 2 ✅
+- Legacy cold/campaign milestone remains deferred; same-day Hero Outcome 2 closes under the warm-first rule after 10+ real warm follow-up drafts are approved in the dashboard
 
 ### Phase 2: Outreach Dispatch Foundation
 - Shared outbound safety chain (circuit breaker, rate limiter, dedup)
@@ -2778,9 +2792,15 @@ Everything in Phase 0 is infrastructure and the first agent run. No outbound sen
 - 3E: Warm deploy-readiness hardening (unified dispatch, auth, Postgres-backed deployed persistence, idempotent generation, business-date consistency, tag-safety hotfix validation, audited tag recovery if needed)
 
 ### Phase 3F: Warm Dashboard Deployment to Vercel
-- Deploy the validated warm dashboard remotely for Dani
-- Starts only after `PHASE_3E_DEPLOY_READY`, `PHASE_3E_TAG_SAFETY_HOTFIX`, and `PHASE_3E_TAG_RECOVERY_COMPLETE`
-- Runs in warm-only mode first with HTTP Basic Auth and Postgres persistence
+- Dashboard deployed at `caio-rev-try.vercel.app` (2026-03-10)
+- Auth working, pages rendering, warm-only mode active with Postgres persistence
+- DB connection hardening, healthz DB probe, graceful route fallbacks, and candidate-source fallback are implemented and locally validated
+- Remaining: real pipeline population, deployed route verification with real data, and Dani remote verification
+- Pipeline has never run against real GHL data — dashboard counters stay at zero until Task 62D writes real rows to Postgres
+
+**Same-day Hero Outcome path (2026-03-10):**
+- Hero Outcome 2 closes when Dani approves at least 10 real warm follow-up drafts in the dashboard
+- Hero Outcome 3 closes when Dani accesses the deployed warm dashboard remotely, sees real data, and completes at least one approval or rejection from a non-dev machine
 
 ### Phase 4: Cold-Outbound Expansion
 - Reactivate cold outbound as a separate tested operator surface
@@ -2805,5 +2825,9 @@ Everything in Phase 0 is infrastructure and the first agent run. No outbound sen
 *v2.8 refinements (audited tag recovery pass): one-time incident-manifest restore procedure, dry-run diff + additive-only recovery tooling, post-restore verification requirement, `PHASE_3E_TAG_RECOVERY_COMPLETE`, and completed recovery evidence for the 2026-03-08 tag-loss incident.*
 *v2.9 refinements (project-root consolidation pass): `Project-RevTry` promoted to the authoritative runtime root, project-local `.mcp.json` and runtime slash commands made self-contained, Task 3B bulk-create smoke independently verified, and the next operational chain re-centered on Task 15 before deployment work.*
 *v2.10 refinements (runtime-priority sync pass): immediate next runtime sequence locked to Task 15–22 in the authoritative project root, and legacy CAIO tracker guidance reduced to reference-only redirect behavior so deployment does not jump ahead of the Phase 0 audit/triage chain.*
+*v2.11 refinements (Vercel deployment pass): Phase 3F deployment live at `caio-rev-try.vercel.app`, deployment architecture documented (api/index.py + vercel.json + root requirements.txt), three deployment bugs fixed (missing files, python-multipart, DB error handling), remaining gaps identified (DB timeout, healthz probe, 4 unprotected routes, pipeline data population), Hero Outcome 3 priority elevated alongside Phase 0 audit chain.*
+
+*v2.12 refinements (same-day Hero Outcome 2/3 execution pass): Phase 0 bookkeeping reconciled as complete, Phase 3F hardening validated locally (`connect_timeout=5`, DB-probing `/healthz`, graceful route fallbacks, triage-backed candidate-source fallback), and the immediate path narrowed to real pipeline population, deployed route verification, Dani remote approval, and warm-first Hero Outcome 2 closure.*
+*v2.13 refinements (deployed warm-generation resilience pass): vault loading now auto-resolves the repo-local `revtry/vault` tree when `VAULT_DIR` is unset, `/followups/generate` now degrades to structured `503` JSON on unexpected startup failure instead of raw `500`, and the validated local suite increased to `330 passed`.*
 *Build sequence: Steps 1–2 (workspace + runtime contract) → Step 3A (MCP extension) → Step 3B–9 (runtime infrastructure) → Step 10 (validated GHL audit) → Step 11 (validated hero outcome)*
 *All files in Section 10 must be created with content. Future-phase files may use only formal phase-gated stubs.*

@@ -113,14 +113,20 @@ Lead Analysis — {{ (queue_item.contactName if queue_item else None) or (summar
     </div>
 
     {% if draft.status.value == 'PENDING' %}
-    <div style="margin-top:24px; display:flex; gap:12px; flex-wrap:wrap;">
-        <form method="POST" action="/followups/{{ draft.draft_id }}/approve">
-            <button type="submit" class="btn btn-approve">Approve</button>
-        </form>
-        <form method="POST" action="/followups/{{ draft.draft_id }}/reject" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <input type="text" name="reason" placeholder="Rejection reason..." style="padding:8px; border:1px solid #ddd; border-radius:4px; width:300px;">
-            <button type="submit" class="btn btn-reject">Reject</button>
-        </form>
+    <div style="margin-top:24px; margin-bottom:24px; padding:20px; background:#f8f9fa; border-radius:8px; border:1px solid #e5e7eb;">
+        <h4 style="margin-bottom:16px;">Draft Actions</h4>
+        <div style="margin-bottom:16px;">
+            <form method="POST" action="/followups/{{ draft.draft_id }}/approve">
+                <button type="submit" class="btn btn-approve">Approve Draft</button>
+            </form>
+        </div>
+        <div style="border-top:1px solid #e5e7eb; padding-top:16px;">
+            <form method="POST" action="/followups/{{ draft.draft_id }}/reject">
+                <label for="reject-reason" style="display:block; font-weight:600; margin-bottom:8px;">Reject Draft</label>
+                <textarea id="reject-reason" name="reason" rows="3" placeholder="Why reject this draft? This reason is saved for later revision." style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-family:inherit; margin-bottom:12px;"></textarea>
+                <button type="submit" class="btn btn-reject">Reject Draft</button>
+            </form>
+        </div>
     </div>
     {% endif %}
     {% else %}

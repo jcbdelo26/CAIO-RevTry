@@ -545,6 +545,90 @@ class TestWarmDashboardRoutes:
         assert updated.subject == original.subject
         assert updated.body == original.body
 
+    def test_followup_edit_save_failure_returns_503_with_preserved_form(self, client, seeded_followups):
+        with patch("dashboard.app.save_followup_draft", side_effect=RuntimeError("db write failed")):
+            resp = client.post(
+                f"/followups/{seeded_followups}/edit",
+                data={
+                    "subject": "Edited subject before failure",
+                    "body": _valid_followup_edit_body("Edited subject before failure"),
+                },
+            )
+
+        assert resp.status_code == 503
+        assert "could not be saved right now" in resp.text
+        assert "Edited subject before failure" in resp.text
+
+    def test_followup_edit_save_failure_does_not_mutate_stored_draft(self, client, seeded_followups):
+        original = get_followup_draft(seeded_followups)
+        assert original is not None
+        original_subject = original.subject
+        original_body = original.body
+
+        with patch("dashboard.app.save_followup_draft", side_effect=RuntimeError("db write failed")):
+            client.post(
+                f"/followups/{seeded_followups}/edit",
+                data={
+                    "subject": "Should not persist",
+                    "body": _valid_followup_edit_body("Should not persist"),
+                },
+            )
+
+        after = get_followup_draft(seeded_followups)
+        assert after is not None
+        assert after.subject == original_subject
+        assert after.body == original_body
+
+    def test_detail_falls_back_to_primary_thread_when_source_id_missing(self, client, seeded_followups):
+        """When draft source_conversation_id doesn't match any thread, fall back to primary thread."""
+        draft = get_followup_draft(seeded_followups)
+        assert draft is not None
+        draft.source_conversation_id = "conv-nonexistent"
+        save_followup_draft(draft)
+
+        resp = client.get("/followups/contact/contact-followup-1")
+        assert resp.status_code == 200
+        # Primary thread (conv-1) should still display as fallback
+        assert "Can you send timing options?" in resp.text
+
+    def test_detail_renders_cleanly_without_any_thread(self, client, tmp_path):
+        """When the summary has no threads, the page renders without crashing."""
+        summary_data = {
+            "contactId": "contact-no-threads",
+            "ghlContactId": "ghl-no-threads",
+            "firstName": "No",
+            "lastName": "Threads",
+            "email": "nothreads@acme.com",
+            "companyName": "Acme",
+            "title": "VP",
+            "threads": [],
+            "totalMessages": 0,
+            "lastInboundDate": None,
+            "lastOutboundDate": None,
+            "scannedAt": "2026-03-08T10:00:00+00:00",
+        }
+        _write_indexed_model(tmp_path, "conversations", "contact-no-threads", summary_data)
+
+        analysis_data = {
+            "contactId": "contact-no-threads",
+            "sourceConversationId": "conv-missing",
+            "sentiment": "neutral",
+            "stage": "new",
+            "trigger": "no_reply",
+            "triggerReason": "No reply.",
+            "urgency": "warm",
+            "keyTopics": [],
+            "recommendedAction": "Follow up.",
+            "conversationSummary": "No threads available.",
+            "daysSinceLastActivity": 5,
+            "analyzedAt": "2026-03-08T11:00:00+00:00",
+        }
+        _write_indexed_model(tmp_path, "conversation_analysis", "contact-no-threads", analysis_data)
+
+        resp = client.get("/followups/contact/contact-no-threads")
+        assert resp.status_code == 200
+        assert "no matching thread messages were loaded" in resp.text
+
     @patch("dashboard.app.run_followup_orchestrator", new_callable=AsyncMock)
     def test_followup_generate_triggers_manual_orchestrator(self, mock_orchestrator, client):
         mock_orchestrator.return_value = {

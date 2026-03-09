@@ -20,7 +20,11 @@ Current build sequence:
 Current code status:
 - Warm generation, review, approval, dispatch, scheduler, auth, storage abstraction, and deploy-readiness hardening are implemented
 - Full local suite is green: `318 passed`
-- Task 3B evidence is reconciled in the project-local runtime copy; the next operational task is `Task 15` in `revtry/registry/MASTER-TASKS.md`
+- Task 3B evidence is reconciled in the project-local runtime copy
+- **Vercel deployment live** at `caio-rev-try.vercel.app` (2026-03-10)
+  - Auth working, pages rendering, warm-only mode active
+  - Dashboard shows zeros — pipeline not yet run against real GHL data
+  - Remaining: DB timeout hardening, healthz DB probe, 4 route error handlers, pipeline data population
 
 ---
 
@@ -230,12 +234,27 @@ Current baseline:
 
 ---
 
-## 10. Current Next Steps
+## 10. Deployment Files
 
-Immediate runtime roadmap:
-1. Start `Task 15` in `revtry/registry/MASTER-TASKS.md`
-2. Continue the Phase 0 audit chain through `Task 22` before opening new operational scope
+Vercel-specific files (not part of src/):
+- `api/index.py` — Vercel serverless entry point (adds `src/` to sys.path, imports FastAPI app)
+- `vercel.json` — Vercel build/route config (all traffic → `api/index.py`)
+- `requirements.txt` (root) — production dependencies for Vercel
 
-Later code roadmap:
-1. Keep `Task 62` queued until the Phase 0 audit/triage chain is back on solid documented footing
-2. Treat Phase 3F as deployment configuration and remote verification work, not a reason to reopen warm product scope
+---
+
+## 11. Current Next Steps
+
+**Hero Outcome 3 priority (Phase 3F completion):**
+1. Tasks 62A-62C: DB timeout, healthz probe, route error handling → push to Vercel
+2. Task 62D: Run warm pipeline locally against Neon Postgres (`batch_size=10`)
+3. Task 63: Verify dashboard shows real data, test approve/reject
+4. Task 64: Dani verifies remote access from phone
+
+**Parallel priority (Phase 0 audit chain):**
+5. Task 15: Execute GHL audit
+6. Tasks 16-22: Complete audit → triage → notification chain
+
+Rules:
+- Treat Phase 3F as deployment configuration and remote verification work, not a reason to reopen warm product scope
+- NEVER send real emails — pipeline generates drafts for review only

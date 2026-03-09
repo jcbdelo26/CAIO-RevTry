@@ -547,7 +547,14 @@ async def edit_followup_endpoint(
         updated.dispatch_error = None
 
     updated.edited_at = datetime.now(timezone.utc).isoformat()
-    save_followup_draft(updated)
+    try:
+        save_followup_draft(updated)
+    except Exception:
+        logger.exception("Failed to save follow-up draft")
+        context["edit_errors"] = ["The draft could not be saved right now. Please try again."]
+        context["edit_subject"] = subject
+        context["edit_body"] = body
+        return templates.TemplateResponse(request, "followup_detail.html", context, status_code=503)
     return RedirectResponse(url=f"/followups/contact/{updated.contact_id}?date={updated.business_date}", status_code=303)
 
 
