@@ -203,8 +203,24 @@ async def briefing_view(
     date: Optional[str] = None,
     _: None = Depends(require_dashboard_auth),
 ) -> HTMLResponse:
-    briefing = load_daily_briefing(date)
-    queue = load_followup_queue(date)
+    try:
+        briefing = load_daily_briefing(date)
+        queue = load_followup_queue(date)
+    except Exception as exc:
+        logger.exception("Failed to load briefing data")
+        from utils.business_time import current_business_date
+        from models.schemas import DailyBriefing
+        briefing = DailyBriefing(
+            date=date or current_business_date(),
+            totalContactsScanned=0, contactsNeedingFollowup=0,
+            contactsSkippedNoConversation=0, contactsSkippedNoEmail=0,
+            hotCount=0, warmCount=0, coolingCount=0,
+            noReplyCount=0, awaitingResponseCount=0, goneColdCount=0,
+            draftsGenerated=0, analysisFailedCount=0, draftFailedCount=0,
+            estimatedCostUsd=0.0,
+            generatedAt="error",
+        )
+        queue = []
     return templates.TemplateResponse(
         request,
         "briefing.html",
@@ -222,7 +238,11 @@ async def followup_list_view(
     date: Optional[str] = None,
     _: None = Depends(require_dashboard_auth),
 ) -> HTMLResponse:
-    queue = load_followup_queue(date)
+    try:
+        queue = load_followup_queue(date)
+    except Exception:
+        logger.exception("Failed to load followup queue")
+        queue = []
     return templates.TemplateResponse(
         request,
         "followup_list.html",
