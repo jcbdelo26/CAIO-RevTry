@@ -13,8 +13,46 @@ from pathlib import Path
 from typing import Optional
 
 
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _candidate_vault_dirs() -> list[Path]:
+    configured = os.environ.get("VAULT_DIR", "").strip()
+    cwd = Path.cwd()
+    repo_root = _project_root()
+
+    candidates: list[Path] = []
+    if configured:
+        candidates.append(Path(configured))
+
+    candidates.extend(
+        [
+            cwd / "vault",
+            cwd / "revtry" / "vault",
+            repo_root / "vault",
+            repo_root / "revtry" / "vault",
+        ]
+    )
+
+    unique_candidates: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate.resolve(strict=False))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_candidates.append(candidate)
+
+    return unique_candidates
+
+
 def _vault_dir() -> Path:
-    return Path(os.environ.get("VAULT_DIR", "vault"))
+    candidates = _candidate_vault_dirs()
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
 
 
 def _read_vault_file(relative_path: str) -> str:

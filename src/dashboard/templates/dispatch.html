@@ -5,6 +5,13 @@
 {% block content %}
 <h2 style="margin-bottom: 16px;">Outreach Dispatch</h2>
 
+{% if load_error %}
+<div class="card" style="border-left: 4px solid #dc3545; margin-bottom: 16px;">
+    <strong>Dispatch data unavailable</strong>
+    <p style="margin: 8px 0 0; color: #555;">{{ load_error }}</p>
+</div>
+{% endif %}
+
 <!-- Stats Row -->
 <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
     <div class="stat-card">

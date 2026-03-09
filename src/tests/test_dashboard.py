@@ -346,6 +346,17 @@ class TestWarmDashboardRoutes:
         assert resp.status_code == 503
         assert resp.json()["status"] == "blocked_missing_anthropic_api_key"
 
+    @patch("dashboard.app.run_followup_orchestrator", new_callable=AsyncMock)
+    def test_followup_generate_returns_503_on_unexpected_failure(self, mock_orchestrator, client):
+        mock_orchestrator.side_effect = RuntimeError("vault unavailable")
+
+        resp = client.post("/followups/generate")
+
+        assert resp.status_code == 503
+        assert resp.json()["status"] == "error"
+        assert resp.json()["saved"] == 0
+        assert resp.json()["errors"] == ["Warm pipeline unavailable"]
+
     def test_scheduler_enabled_does_not_crash_without_apscheduler(self, monkeypatch):
         monkeypatch.setenv("SCHEDULER_ENABLED", "true")
         from dashboard.app import app
@@ -412,6 +423,60 @@ class TestDashboardAuthAndWarmOnly:
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
+    def test_healthz_probes_postgres_when_enabled(self, client):
+        class _FakeCursor:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def execute(self, query):
+                assert query == "SELECT 1"
+
+            def fetchone(self):
+                return (1,)
+
+        class _FakeConnection:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def cursor(self):
+                return _FakeCursor()
+
+        class _FakeBackend:
+            def _connect(self):
+                return _FakeConnection()
+
+        with (
+            patch("dashboard.app.get_storage_backend_name", return_value="postgres"),
+            patch("dashboard.app.get_storage_backend", return_value=_FakeBackend()),
+        ):
+            resp = client.get("/healthz")
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
+        assert resp.json()["db"] == "connected"
+
+    def test_healthz_returns_degraded_when_postgres_probe_fails(self, client):
+        class _BrokenBackend:
+            def _connect(self):
+                raise RuntimeError("db unavailable")
+
+        with (
+            patch("dashboard.app.get_storage_backend_name", return_value="postgres"),
+            patch("dashboard.app.get_storage_backend", return_value=_BrokenBackend()),
+        ):
+            resp = client.get("/healthz")
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "degraded"
+        assert resp.json()["db"] == "error"
+        assert "db unavailable" in resp.json()["detail"]
+
     def test_auth_challenge_protects_dashboard_routes(self, monkeypatch):
         monkeypatch.setenv("DASHBOARD_AUTH_ENABLED", "true")
         monkeypatch.setenv("DASHBOARD_BASIC_AUTH_USER", "dani")
@@ -460,3 +525,38 @@ class TestDashboardAuthAndWarmOnly:
         with pytest.raises(RuntimeError, match="WARM_ONLY_MODE=true requires STORAGE_BACKEND=postgres"):
             with TestClient(app):
                 pass
+
+    def test_followup_detail_returns_503_error_state_on_storage_failure(self, client):
+        with patch("dashboard.app.get_followup_draft", side_effect=RuntimeError("db unavailable")):
+            resp = client.get("/followups/followup-1")
+
+        assert resp.status_code == 503
+        assert "Follow-Up Unavailable" in resp.text
+        assert "could not be loaded right now" in resp.text
+
+    def test_dispatch_view_renders_degraded_state_on_storage_failure(self, client):
+        with patch("dashboard.app.list_followup_drafts", side_effect=RuntimeError("db unavailable")):
+            resp = client.get("/dispatch")
+
+        assert resp.status_code == 200
+        assert "Dispatch data unavailable" in resp.text
+
+    def test_dispatch_status_returns_degraded_json_on_storage_failure(self, client):
+        with patch("dashboard.app.CircuitBreaker", side_effect=RuntimeError("db unavailable")):
+            resp = client.get("/dispatch/status")
+
+        assert resp.status_code == 503
+        assert resp.json()["status"] == "degraded"
+        assert resp.json()["errors"] == ["Dispatch status unavailable"]
+
+    @patch("dashboard.app.dispatch_approved_followups", new_callable=AsyncMock)
+    def test_dispatch_run_returns_503_error_json_on_storage_failure(self, mock_warm, client):
+        mock_warm.side_effect = RuntimeError("db unavailable")
+
+        resp = client.post("/dispatch/run")
+
+        assert resp.status_code == 503
+        payload = resp.json()
+        assert payload["status"] == "error"
+        assert payload["totals"] == {"dispatched": 0, "failed": 0}
+        assert payload["errors"] == ["Dispatch run failed"]

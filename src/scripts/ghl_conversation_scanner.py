@@ -39,21 +39,98 @@ def _outputs_dir() -> Path:
     return Path(os.environ.get("OUTPUTS_DIR", "outputs"))
 
 
+def _runtime_outputs_dir() -> Path:
+    return Path(__file__).resolve().parents[2] / "revtry" / "outputs"
+
+
 def _conversations_dir() -> Path:
     d = _outputs_dir() / "conversations"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def load_candidates(batch_size: int | None = None) -> list[dict[str, Any]]:
-    """Load follow-up candidates from the audit output."""
-    candidates_path = _outputs_dir() / "ghl_followup_candidates.json"
-    if not candidates_path.exists():
-        logger.warning("No ghl_followup_candidates.json found at %s", candidates_path)
-        return []
+def _candidate_cache_path() -> Path:
+    return _outputs_dir() / "ghl_followup_candidates.json"
 
-    data = json.loads(candidates_path.read_text(encoding="utf-8"))
-    candidates = data if isinstance(data, list) else data.get("candidates", [])
+
+def _load_candidate_payload(path: Path) -> list[dict[str, Any]]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data if isinstance(data, list) else data.get("candidates", [])
+
+
+def _find_latest_triage_output() -> Optional[Path]:
+    runtime_outputs = _runtime_outputs_dir()
+    if not runtime_outputs.exists():
+        return None
+
+    candidates = sorted(
+        runtime_outputs.glob("TASK-*_output.json"),
+        key=lambda item: item.stat().st_mtime,
+        reverse=True,
+    )
+    for path in candidates:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+
+        prioritized = payload.get("triage", {}).get("prioritizedContacts")
+        if isinstance(prioritized, list):
+            return path
+    return None
+
+
+def _map_triage_contacts(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    task_id = payload.get("taskId", path.stem)
+    prioritized_contacts = payload.get("triage", {}).get("prioritizedContacts", [])
+
+    mapped: list[dict[str, Any]] = []
+    for item in prioritized_contacts:
+        email = (item.get("email") or "").strip()
+        if not email:
+            continue
+
+        mapped.append(
+            {
+                "ghl_contact_id": item.get("contactId", ""),
+                "email": email,
+                "first_name": item.get("firstName") or "",
+                "last_name": item.get("lastName") or "",
+                "company_name": item.get("companyName") or item.get("company") or "",
+                "score": item.get("totalScore") or 0,
+            }
+        )
+
+    cache_payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source": "triage_fallback",
+        "source_task_id": task_id,
+        "total_candidates": len(mapped),
+        "candidates": mapped,
+    }
+    return mapped, cache_payload
+
+
+def load_candidates(batch_size: int | None = None) -> list[dict[str, Any]]:
+    """Load follow-up candidates from the cached whitelist or latest validated triage output."""
+    candidates_path = _candidate_cache_path()
+    if candidates_path.exists():
+        candidates = _load_candidate_payload(candidates_path)
+    else:
+        fallback_path = _find_latest_triage_output()
+        if fallback_path is None:
+            logger.warning("No ghl_followup_candidates.json found at %s", candidates_path)
+            return []
+
+        candidates, cache_payload = _map_triage_contacts(fallback_path)
+        candidates_path.parent.mkdir(parents=True, exist_ok=True)
+        candidates_path.write_text(json.dumps(cache_payload, indent=2), encoding="utf-8")
+        logger.info(
+            "Generated ghl_followup_candidates.json from triage fallback %s (%d candidates)",
+            fallback_path.name,
+            len(candidates),
+        )
 
     # DAILY_SCAN_BATCH_SIZE is the canonical env var; MAX_SCAN_CONTACTS is a deprecated alias
     limit = batch_size or int(
@@ -75,14 +152,41 @@ def has_valid_email(email: str) -> bool:
     return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email.strip()))
 
 
+def _normalize_message_type(raw_type: Any) -> str:
+    if isinstance(raw_type, str) and raw_type.strip():
+        return raw_type
+    if isinstance(raw_type, int):
+        return "Email" if raw_type == 3 else str(raw_type)
+    return "Email"
+
+
 def _parse_messages(
-    raw_messages: list[dict[str, Any]],
+    raw_messages: Any,
     conversation_id: str,
     cutoff: datetime,
 ) -> list[ConversationMessage]:
     """Parse and filter messages to those within the scan window."""
+    if isinstance(raw_messages, dict):
+        raw_messages = raw_messages.get("messages", [])
+
+    if not isinstance(raw_messages, list):
+        logger.warning(
+            "Unexpected message payload shape for conversation %s: %s",
+            conversation_id,
+            type(raw_messages).__name__,
+        )
+        return []
+
     messages: list[ConversationMessage] = []
     for msg in raw_messages:
+        if not isinstance(msg, dict):
+            logger.warning(
+                "Skipping non-dict message item for conversation %s: %s",
+                conversation_id,
+                type(msg).__name__,
+            )
+            continue
+
         ts = msg.get("dateAdded", msg.get("createdAt", ""))
         if not ts:
             continue
@@ -102,7 +206,7 @@ def _parse_messages(
             body=msg.get("body", msg.get("text", "")),
             subject=msg.get("subject"),
             timestamp=ts,
-            messageType=msg.get("type", "Email"),
+            messageType=_normalize_message_type(msg.get("type", "Email")),
         ))
 
     return messages

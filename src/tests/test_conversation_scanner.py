@@ -10,6 +10,7 @@ import pytest
 
 from integrations.ghl_client import GHLClient
 from scripts.ghl_conversation_scanner import (
+    _normalize_message_type,
     _parse_messages,
     compact_thread_messages,
     filter_eligible_summaries,
@@ -158,6 +159,41 @@ class TestParseMessages:
         assert result[0].body == "Hello!"
         assert result[0].message_type == "Email"
 
+    def test_handles_nested_messages_wrapper(self):
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        ts = datetime.now(timezone.utc).isoformat()
+        raw = {
+            "lastMessageId": "msg-1",
+            "nextPage": False,
+            "messages": [
+                {
+                    "id": "msg-1",
+                    "dateAdded": ts,
+                    "direction": "inbound",
+                    "body": "Wrapped message",
+                }
+            ],
+        }
+
+        result = _parse_messages(raw, "conv-1", cutoff)
+        assert len(result) == 1
+        assert result[0].message_id == "msg-1"
+        assert result[0].body == "Wrapped message"
+
+    def test_skips_non_dict_message_items(self):
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        ts = datetime.now(timezone.utc).isoformat()
+        raw = ["bad-item", {"id": "msg-1", "dateAdded": ts, "direction": "outbound", "body": "good"}]
+
+        result = _parse_messages(raw, "conv-1", cutoff)
+        assert len(result) == 1
+        assert result[0].message_id == "msg-1"
+
+    def test_normalizes_numeric_email_message_type(self):
+        assert _normalize_message_type(3) == "Email"
+        assert _normalize_message_type("SMS") == "SMS"
+        assert _normalize_message_type(None) == "Email"
+
 
 # ── Scanner tests ────────────────────────────────────────────────────────────
 
@@ -194,6 +230,38 @@ class TestScanContact:
         assert result.total_messages == 2
         assert result.last_inbound_date is not None
         assert result.last_outbound_date is not None
+        assert len(result.threads) == 1
+
+    @pytest.mark.asyncio
+    async def test_scan_contact_with_nested_message_wrapper(self):
+        ts = datetime.now(timezone.utc).isoformat()
+        mock_ghl = MagicMock()
+        mock_ghl.search_conversations = AsyncMock(return_value={
+            "conversations": [{"id": "conv-1"}],
+        })
+        mock_ghl.get_messages = AsyncMock(return_value={
+            "messages": {
+                "lastMessageId": "m2",
+                "nextPage": False,
+                "messages": [
+                    {"id": "m1", "dateAdded": ts, "direction": "outbound", "body": "Hi there"},
+                    {"id": "m2", "dateAdded": ts, "direction": "inbound", "body": "Thanks!"},
+                ],
+            },
+        })
+
+        contact = {
+            "ghl_contact_id": "c-123",
+            "email": "jane@acme.com",
+            "first_name": "Jane",
+            "last_name": "Doe",
+            "company_name": "Acme Corp",
+        }
+
+        result = await scan_contact(mock_ghl, contact, scan_days=30)
+
+        assert result is not None
+        assert result.total_messages == 2
         assert len(result.threads) == 1
 
     @pytest.mark.asyncio
@@ -287,8 +355,12 @@ class TestLoadCandidates:
         result = load_candidates(batch_size=5)
         assert len(result) == 5
 
-    def test_missing_file_returns_empty(self, tmp_path, monkeypatch):
+    def test_missing_file_returns_empty_when_no_triage_fallback_exists(self, tmp_path, monkeypatch):
         monkeypatch.setenv("OUTPUTS_DIR", str(tmp_path))
+        monkeypatch.setattr(
+            "scripts.ghl_conversation_scanner._runtime_outputs_dir",
+            lambda: tmp_path / "missing-runtime-outputs",
+        )
         result = load_candidates()
         assert result == []
 
@@ -334,6 +406,107 @@ class TestLoadCandidates:
 
         result = load_candidates(batch_size=2)
         assert len(result) == 2
+
+    def test_missing_whitelist_falls_back_to_latest_triage_output(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OUTPUTS_DIR", str(tmp_path / "outputs"))
+        runtime_outputs = tmp_path / "revtry" / "outputs"
+        runtime_outputs.mkdir(parents=True, exist_ok=True)
+        triage_path = runtime_outputs / "TASK-20260309-173228886-RMb2_output.json"
+        triage_path.write_text(
+            json.dumps(
+                {
+                    "taskId": "TASK-20260309-173228886-RMb2",
+                    "triage": {
+                        "prioritizedContacts": [
+                            {
+                                "contactId": "c-1",
+                                "firstName": "Alex",
+                                "lastName": "Morgan",
+                                "email": "alex@acme.com",
+                                "companyName": "Acme",
+                                "totalScore": 91,
+                            },
+                            {
+                                "contactId": "c-2",
+                                "firstName": "Sam",
+                                "lastName": "Lee",
+                                "email": "sam@beta.com",
+                                "company": "Beta",
+                                "totalScore": 88,
+                            },
+                            {
+                                "contactId": "c-3",
+                                "firstName": "No",
+                                "lastName": "Email",
+                                "email": "",
+                                "companyName": "SkipCo",
+                                "totalScore": 77,
+                            },
+                        ]
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            "scripts.ghl_conversation_scanner._runtime_outputs_dir",
+            lambda: runtime_outputs,
+        )
+
+        result = load_candidates(batch_size=10)
+
+        assert result == [
+            {
+                "ghl_contact_id": "c-1",
+                "email": "alex@acme.com",
+                "first_name": "Alex",
+                "last_name": "Morgan",
+                "company_name": "Acme",
+                "score": 91,
+            },
+            {
+                "ghl_contact_id": "c-2",
+                "email": "sam@beta.com",
+                "first_name": "Sam",
+                "last_name": "Lee",
+                "company_name": "Beta",
+                "score": 88,
+            },
+        ]
+
+        cache = json.loads(((tmp_path / "outputs") / "ghl_followup_candidates.json").read_text(encoding="utf-8"))
+        assert cache["source"] == "triage_fallback"
+        assert cache["source_task_id"] == "TASK-20260309-173228886-RMb2"
+        assert cache["total_candidates"] == 2
+        assert [item["ghl_contact_id"] for item in cache["candidates"]] == ["c-1", "c-2"]
+
+    def test_fallback_respects_batch_size_after_mapping(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OUTPUTS_DIR", str(tmp_path / "outputs"))
+        runtime_outputs = tmp_path / "revtry" / "outputs"
+        runtime_outputs.mkdir(parents=True, exist_ok=True)
+        triage_path = runtime_outputs / "TASK-20260309-173228886-RMb2_output.json"
+        triage_path.write_text(
+            json.dumps(
+                {
+                    "taskId": "TASK-20260309-173228886-RMb2",
+                    "triage": {
+                        "prioritizedContacts": [
+                            {"contactId": f"c-{i}", "email": f"person{i}@example.com", "firstName": f"P{i}", "lastName": "User", "totalScore": i}
+                            for i in range(5)
+                        ]
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(
+            "scripts.ghl_conversation_scanner._runtime_outputs_dir",
+            lambda: runtime_outputs,
+        )
+
+        result = load_candidates(batch_size=2)
+
+        assert [item["ghl_contact_id"] for item in result] == ["c-0", "c-1"]
 
 
 class TestScanContactEligibility:

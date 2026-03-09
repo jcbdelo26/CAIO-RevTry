@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — RevTry Dashboard{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 760px; margin: 24px auto;">
+    <h2 style="margin-bottom: 12px;">{{ title }}</h2>
+    <p style="color: #555; margin-bottom: 20px;">{{ message }}</p>
+    <a href="{{ back_href }}" class="btn btn-secondary" style="text-decoration: none;">{{ back_label }}</a>
+</div>
+{% endblock %}

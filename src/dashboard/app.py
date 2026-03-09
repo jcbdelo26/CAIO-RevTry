@@ -56,7 +56,7 @@ from integrations.ghl_client import MissingGhlCredentialsError
 from integrations.ghl_service import push_approved_draft_to_ghl
 
 from models.schemas import DraftApprovalStatus
-from persistence.factory import get_storage_backend_name, validate_storage_configuration
+from persistence.factory import get_storage_backend, get_storage_backend_name, validate_storage_configuration
 logger = logging.getLogger(__name__)
 
 
@@ -129,6 +129,28 @@ def _build_dispatch_status_payload(*, circuit_breaker: CircuitBreaker, rate_limi
         if snapshot
         else None,
     }
+
+
+def _render_error_state(
+    request: Request,
+    *,
+    title: str,
+    message: str,
+    back_href: str,
+    back_label: str,
+    status_code: int = 503,
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "error_state.html",
+        {
+            "title": title,
+            "message": message,
+            "back_href": back_href,
+            "back_label": back_label,
+        },
+        status_code=status_code,
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -281,10 +303,23 @@ async def generate_followups(
     force: bool = Form(False),
     _: None = Depends(require_dashboard_auth),
 ):
-    result = await run_followup_orchestrator(
-        task_id="warm-followup-manual",
-        force=force,
-    )
+    try:
+        result = await run_followup_orchestrator(
+            task_id="warm-followup-manual",
+            force=force,
+        )
+    except Exception:
+        logger.exception("Failed to generate follow-ups")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "briefing_date": None,
+                "briefing_path": None,
+                "saved": 0,
+                "errors": ["Warm pipeline unavailable"],
+            },
+        )
 
     status = result.get("status")
     if status in {"blocked_missing_anthropic_api_key", "blocked_missing_ghl_credentials", "circuit_open"}:
@@ -299,12 +334,32 @@ async def followup_detail_view(
     draft_id: str,
     _: None = Depends(require_dashboard_auth),
 ) -> HTMLResponse:
-    draft = get_followup_draft(draft_id)
+    try:
+        draft = get_followup_draft(draft_id)
+    except Exception:
+        logger.exception("Failed to load follow-up detail")
+        return _render_error_state(
+            request,
+            title="Follow-Up Unavailable",
+            message="The follow-up draft could not be loaded right now.",
+            back_href="/followups",
+            back_label="Back to Follow-Ups",
+        )
     if not draft:
         raise HTTPException(status_code=404, detail="Follow-up draft not found")
 
-    queue_item = _get_followup_queue_item(draft_id)
-    conversation = load_contact_conversation(draft.contact_id)
+    try:
+        queue_item = _get_followup_queue_item(draft_id)
+        conversation = load_contact_conversation(draft.contact_id)
+    except Exception:
+        logger.exception("Failed to load follow-up detail")
+        return _render_error_state(
+            request,
+            title="Follow-Up Unavailable",
+            message="The follow-up draft could not be loaded right now.",
+            back_href="/followups",
+            back_label="Back to Follow-Ups",
+        )
     return templates.TemplateResponse(
         request,
         "followup_detail.html",
@@ -419,11 +474,25 @@ async def reject_draft_endpoint(
 
 @app.get("/healthz")
 async def healthz():
-    return {
+    result = {
         "status": "ok",
         "mode": "warm_only" if is_warm_only_mode() else "mixed",
         "storageBackend": get_storage_backend_name(),
     }
+    if result["storageBackend"] == "postgres":
+        try:
+            backend = get_storage_backend()
+            with backend._connect() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+            result["db"] = "connected"
+        except Exception as exc:
+            logger.exception("Healthz Postgres probe failed")
+            result["status"] = "degraded"
+            result["db"] = "error"
+            result["detail"] = str(exc)
+    return result
 
 
 # ── Dispatch Endpoints ─────────────────────────────────────────────────────────
@@ -436,20 +505,35 @@ async def dispatch_view(
 ) -> HTMLResponse:
     """Show unified warm/cold dispatch queues and recent dispatch history."""
     warm_only = is_warm_only_mode()
-    warm_drafts = list_followup_drafts(latest_only=False)
-    warm_queue = [draft for draft in warm_drafts if draft.status == DraftApprovalStatus.APPROVED]
-    warm_dispatched = [
-        draft for draft in warm_drafts if draft.status == DraftApprovalStatus.DISPATCHED
-    ]
+    warm_queue = []
+    warm_dispatched = []
     cold_queue = []
     cold_dispatched = []
-    if not warm_only:
-        all_drafts = list_drafts()
-        cold_queue = [d for d in all_drafts if d.status == DraftApprovalStatus.APPROVED]
-        cold_dispatched = [d for d in all_drafts if d.status == DraftApprovalStatus.DISPATCHED]
-    cb = CircuitBreaker()
-    rl = DailyRateLimiter()
-    snapshot = KPITracker(circuit_breaker=cb).get_latest_kpi()
+    cb_states = {}
+    daily_counts = {}
+    daily_limit = 0
+    snapshot = None
+    load_error = None
+
+    try:
+        warm_drafts = list_followup_drafts(latest_only=False)
+        warm_queue = [draft for draft in warm_drafts if draft.status == DraftApprovalStatus.APPROVED]
+        warm_dispatched = [
+            draft for draft in warm_drafts if draft.status == DraftApprovalStatus.DISPATCHED
+        ]
+        if not warm_only:
+            all_drafts = list_drafts()
+            cold_queue = [d for d in all_drafts if d.status == DraftApprovalStatus.APPROVED]
+            cold_dispatched = [d for d in all_drafts if d.status == DraftApprovalStatus.DISPATCHED]
+        cb = CircuitBreaker()
+        rl = DailyRateLimiter()
+        cb_states = cb.get_all_states()
+        daily_counts = rl.get_counts()
+        daily_limit = rl.limit
+        snapshot = KPITracker(circuit_breaker=cb).get_latest_kpi()
+    except Exception:
+        logger.exception("Failed to load dispatch data")
+        load_error = "Dispatch data unavailable"
 
     return templates.TemplateResponse(
         request,
@@ -460,10 +544,11 @@ async def dispatch_view(
             "cold_queue": cold_queue,
             "cold_dispatched": cold_dispatched,
             "warm_only_mode": warm_only,
-            "cb_states": cb.get_all_states(),
-            "daily_counts": rl.get_counts(),
-            "daily_limit": rl.limit,
+            "cb_states": cb_states,
+            "daily_counts": daily_counts,
+            "daily_limit": daily_limit,
             "kpi": snapshot,
+            "load_error": load_error,
         },
     )
 
@@ -471,11 +556,10 @@ async def dispatch_view(
 @app.post("/dispatch/run")
 async def dispatch_run(_: None = Depends(require_dashboard_auth)):
     """Trigger a unified warm-first dispatch cycle."""
-    cb = CircuitBreaker()
-    rl = DailyRateLimiter()
-    warm_only = is_warm_only_mode()
-
     try:
+        cb = CircuitBreaker()
+        rl = DailyRateLimiter()
+        warm_only = is_warm_only_mode()
         warm = await dispatch_approved_followups(
             rate_limiter=rl,
             circuit_breaker=cb,
@@ -491,6 +575,34 @@ async def dispatch_run(_: None = Depends(require_dashboard_auth)):
         return JSONResponse(
             status_code=503,
             content={"status": "blocked_missing_ghl_credentials", "errors": [str(exc)]},
+        )
+    except Exception:
+        logger.exception("Dispatch run failed")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "warm": {
+                    "dispatched": 0,
+                    "skippedDedup": 0,
+                    "skippedRateLimit": 0,
+                    "skippedCircuitBreaker": 0,
+                    "failed": 0,
+                    "errors": [],
+                },
+                "cold": {
+                    "dispatched": 0,
+                    "skippedDedup": 0,
+                    "skippedRateLimit": 0,
+                    "skippedCircuitBreaker": 0,
+                    "skippedTier": 0,
+                    "skippedDeferredChannel": 0,
+                    "failed": 0,
+                    "errors": [],
+                },
+                "totals": {"dispatched": 0, "failed": 0},
+                "errors": ["Dispatch run failed"],
+            },
         )
 
     cold_payload = {
@@ -536,11 +648,22 @@ async def dispatch_run(_: None = Depends(require_dashboard_auth)):
 @app.get("/dispatch/status")
 async def dispatch_status(_: None = Depends(require_dashboard_auth)):
     """JSON: circuit breaker states, daily counts, KPI summary."""
-    cb = CircuitBreaker()
-    rl = DailyRateLimiter()
-    payload = _build_dispatch_status_payload(circuit_breaker=cb, rate_limiter=rl)
-    payload["mode"] = "warm_only" if is_warm_only_mode() else "mixed"
-    return payload
+    try:
+        cb = CircuitBreaker()
+        rl = DailyRateLimiter()
+        payload = _build_dispatch_status_payload(circuit_breaker=cb, rate_limiter=rl)
+        payload["mode"] = "warm_only" if is_warm_only_mode() else "mixed"
+        return payload
+    except Exception:
+        logger.exception("Dispatch status unavailable")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "degraded",
+                "mode": "warm_only" if is_warm_only_mode() else "mixed",
+                "errors": ["Dispatch status unavailable"],
+            },
+        )
 
 
 if __name__ == "__main__":

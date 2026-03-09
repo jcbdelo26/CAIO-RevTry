@@ -35,7 +35,7 @@ class PostgresStorageBackend(StorageBackend):
     @contextmanager
     def _connect(self):
         psycopg = _load_psycopg()
-        conn = psycopg.connect(self.database_url)
+        conn = psycopg.connect(self.database_url, connect_timeout=5)
         try:
             yield conn
         finally:

@@ -146,10 +146,12 @@ class TestPersistenceBackends:
 
     def test_postgres_backend_followup_round_trip(self, monkeypatch, _tmp_env):
         fake_db = {"followup_drafts": {}}
+        connect_calls: list[tuple[str, int | None]] = []
 
         class _FakePsycopgModule:
             @staticmethod
-            def connect(_dsn):
+            def connect(_dsn, connect_timeout=None):
+                connect_calls.append((_dsn, connect_timeout))
                 return _FakeConnection(fake_db)
 
         monkeypatch.setattr(
@@ -172,3 +174,5 @@ class TestPersistenceBackends:
         assert loaded.business_date == "2026-03-09"
         assert [draft.draft_id for draft in latest] == ["draft-day-two"]
         assert [draft.draft_id for draft in by_date] == ["draft-day-one"]
+        assert connect_calls
+        assert all(timeout == 5 for _, timeout in connect_calls)
