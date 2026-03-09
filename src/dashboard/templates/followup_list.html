@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Warm Follow-Ups — RevTry Dashboard{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+    <div>
+        <h2 style="margin-bottom: 8px;">Warm Follow-Up Queue</h2>
+        <p style="color:#666;">Conversation-aware drafts only. Approval here changes warm file state only.</p>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="/briefing" class="btn" style="background:#6c757d;color:white;">Back to Briefing</a>
+    </div>
+</div>
+
+{% if queue %}
+<div class="batch-bar">
+    <form method="POST" action="/followups/batch/approve" style="display:inline;">
+        <input type="hidden" name="draft_ids" class="batch-ids" value="">
+        <button type="submit" class="btn btn-approve">Approve Selected</button>
+    </form>
+    <form method="POST" action="/followups/batch/reject" style="display:inline;">
+        <input type="hidden" name="draft_ids" class="batch-ids" value="">
+        <input type="hidden" name="reason" value="Batch rejected">
+        <button type="submit" class="btn btn-reject">Reject Selected</button>
+    </form>
+    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin-left:8px;">
+        <input type="checkbox" onchange="toggleAll(this)"> Select All Pending
+    </label>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th style="width:30px;"></th>
+            <th>Contact</th>
+            <th>Status</th>
+            <th>Urgency</th>
+            <th>Stage</th>
+            <th>Sentiment</th>
+            <th>Last Activity</th>
+            <th>Recommended Action</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in queue %}
+        <tr>
+            <td>
+                {% if item.draftId and item.status and item.status.value == 'PENDING' %}
+                <input type="checkbox" class="draft-check" value="{{ item.draftId }}" onchange="updateSelectedIds()">
+                {% endif %}
+            </td>
+            <td>
+                <div><strong>{{ item.contactName or item.contactId }}</strong></div>
+                <div style="color:#666; font-size:0.85em;">{{ item.companyName or item.contactEmail }}</div>
+            </td>
+            <td>
+                {% if item.status %}
+                    {% set status_value = item.status.value %}
+                    <span class="badge {% if status_value == 'PENDING' %}badge-pending{% elif status_value == 'APPROVED' %}badge-approved{% elif status_value == 'SEND_FAILED' %}badge-send-failed{% elif status_value == 'DISPATCHED' %}badge-approved{% else %}badge-rejected{% endif %}">
+                        {{ status_value }}
+                    </span>
+                {% else %}
+                    <span style="color:#666;">No draft</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if item.urgency %}
+                <span class="badge badge-{{ item.urgency.value|replace('_', '-') }}">{{ item.urgency.value }}</span>
+                {% endif %}
+            </td>
+            <td>{{ item.stage.value if item.stage else "—" }}</td>
+            <td>{{ item.sentiment.value if item.sentiment else "—" }}</td>
+            <td>{{ item.daysSinceLastActivity }} day(s)</td>
+            <td>{{ item.recommendedAction or "—" }}</td>
+            <td>
+                {% if item.draftId %}
+                <a href="/followups/{{ item.draftId }}" class="btn" style="background:#007bff;color:white;">View</a>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="card">
+    <p>No warm follow-up drafts are available yet.</p>
+</div>
+{% endif %}
+{% endblock %}

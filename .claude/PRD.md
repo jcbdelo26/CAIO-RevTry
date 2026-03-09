@@ -1,6 +1,6 @@
 # PRD — RevTry: Revenue Operations Sentry
 ## ChiefAIOfficer.com
-**Version**: 2.3 | **Date**: 2026-03-07 | **Status**: Ready for Implementation
+**Version**: 2.10 | **Date**: 2026-03-09 | **Status**: Project-Root Runtime Consolidated + Task 15 Audit Chain Prioritized
 **Refined by**: Greenfield Coding Workflow bulletproofing process
 **Source**: `E:\CAIO RevOps Claw\RevTry_PRD.md` v1.0
 
@@ -8,22 +8,17 @@
 
 ## 0. CRITICAL READ-FIRST
 
-This build has two distinct locations. Do not treat them as interchangeable.
+This build now uses one authoritative project/runtime root.
 
-**Planning Scaffold vs Runtime Workspace**
-- Planning scaffold: `E:\Greenfield Coding Workflow\Project-RevTry\`
-- Executable runtime workspace: `e:/CAIO RevOps Claw/`
-- The scaffold's `.claude/commands/` files are planning helpers and templates.
-- The runtime slash commands for RevTry must be created separately in `e:/CAIO RevOps Claw/.claude/commands/`.
-- The existence of scaffold commands is NOT proof that runtime commands already exist.
+**Authoritative Project Root**
+- Project + runtime root: `E:\Greenfield Coding Workflow\Project-RevTry\`
+- Runtime registry/vault root: `E:\Greenfield Coding Workflow\Project-RevTry\revtry\`
+- Runtime slash commands and `.mcp.json` live inside the Project RevTry root and are the files to use moving forward.
 
-This is a greenfield build inside an existing runtime workspace. The current files in `e:/CAIO RevOps Claw/` are the only local source material.
-
-**DO NOT delete source docs first:**
-- Preserve `e:/CAIO RevOps Claw/GEMINI.md`
-- Preserve `e:/CAIO RevOps Claw/vault/`
-- Create `revtry/migration/legacy_inventory.md` with a source-to-destination migration map
-- Only archive or remove a legacy file AFTER its content has been migrated, reviewed, and freshness-dated in the new structure
+**Legacy reference workspace**
+- `e:/CAIO RevOps Claw/` is now reference-only unless explicitly reactivated.
+- Do not write new operational state there for this project.
+- Historical source docs from the CAIO workspace may still be consulted, but the active runtime source of truth is Project RevTry.
 
 **Alpha-swarm reuse policy:**
 - Allowed: business knowledge extracted into vault files
@@ -41,35 +36,54 @@ This is a greenfield build inside an existing runtime workspace. The current fil
 3. If import/dependency errors occur, install the explicit packages required by the file imports (`mcp`, `aiohttp`, `python-dotenv`) and retry. Do NOT assume `requirements.txt` or `pyproject.toml` exists.
 4. If the entrypoint file is missing entirely: log a Phase 0 blocker to `revtry/registry/escalations.md` and stop. Do not stub. Escalate to Chris.
 5. Confirm required environment variables are present: `GHL_API_KEY`, `GHL_LOCATION_ID`
-6. Run live GHL tool discovery and write the verified tool list + input/output schema notes into `revtry/vault/integrations/ghl.md`
-7. If any required dependency or read capability is missing, log a Phase 0 blocker to `revtry/registry/escalations.md` and stop implementation
-8. If `SLACK_WEBHOOK_URL` is absent, record notification behavior as `SKIPPED_OPTIONAL`; this is warning-only for Phase 0 infrastructure checks
+6. Confirm the GHL Private Integration token has the read/write scopes required for safe smoke validation. A token that can read but cannot write keeps Task 3B and the tag-safety smoke blocked.
+7. Launch the fresh Claude Code runtime session for Task 3B from an env-ready PowerShell shell. The current shell is NOT reliable proof that the Claude runtime session inherited the same environment.
+8. Run live GHL tool discovery and write the verified tool list + input/output schema notes into `revtry/vault/integrations/ghl.md`
+9. For Task 3B PASS, write-capable MCP tools must be verified only against designated safe smoke assets (test contact emails, safe pipeline/stage, safe workflow, safe calendar). If safe assets are missing, unsafe, or blocked by missing write scopes, PAUSE the task and keep the Phase 0A live gate closed.
+10. If any required dependency, read capability, or safe-write scope is missing, log a Phase 0 blocker to `revtry/registry/escalations.md` and stop implementation
+11. If `SLACK_WEBHOOK_URL` is absent, record notification behavior as `SKIPPED_OPTIONAL`; this is warning-only for Phase 0 infrastructure checks
 
 **Phase 0A hard gate:** Hero Outcome 1 is blocked until the external GHL MCP exposes the read capabilities required for audit and triage. No PRD section may assume audit or triage is runnable before Phase 0A passes.
 
+**Immediate operational priority after Task 3B:** With `PHASE_0A_MCP_VERIFIED_LIVE = PASSED` and `PHASE_0B_WORKSPACE_READY = PASSED`, the next runtime chain is `Task 15 -> Task 16 -> Task 17 -> Task 18 -> Task 19 -> Task 20 -> Task 21 -> Task 22`. `Task 62` / Phase 3F deployment remains queued and must not jump ahead of the Phase 0 audit/triage chain.
+
 **Known inconsistency:** The external `manifest.json` may advertise fewer tools than `server.py` documents. Treat live discovery as the ONLY source of truth for tool availability and behavior. Treat `server.py` as the authoritative entrypoint path. Do not treat the manifest tool list as complete.
 
-**Planning Scaffold Root**: `E:\Greenfield Coding Workflow\Project-RevTry\`
-**Workspace Root**: `e:/CAIO RevOps Claw/`
-**Project Root**: `e:/CAIO RevOps Claw/revtry/`
+**Warm-first pre-production execution rule:**
+- Warm follow-up (Phase 3A-3F) is the first post-foundation acceptance gate.
+- Vercel deployment starts immediately after the warm dashboard passes local/private validation.
+- Cold outbound expansion and autonomy graduation stay on the active roadmap, but they must not expand the warm MVP context surface.
+- Warm phases may load only compacted primary-thread conversation context, signatures/compliance rules, and minimal CTA/proof context when needed.
+- Warm phases may NOT load cold-outbound angle playbooks, broad ICP/campaign context, or autonomy policy context unless a later phase explicitly requires it.
+
+**Tag-safety hotfix gate:**
+- Freeze non-essential GHL writes until the add-only tag hotfix is coded and validated.
+- Task 3B smoke writes remain allowed because they are restricted to designated safe smoke assets.
+- All contact tag writes are add-only. Generic contact upsert/update payloads may not include `tags`, `tagIds`, or equivalent clear/remove semantics.
+- Any audit-confirmed tag-loss recovery must use an exact incident manifest, dry-run diff, additive-only restore, and post-restore verification before broader writes resume.
+- Phase 3F deployment and further feature development remain blocked until both `PHASE_3E_TAG_SAFETY_HOTFIX = PASSED` and `PHASE_3E_TAG_RECOVERY_COMPLETE = PASSED`.
+
+**Authoritative Project Root**: `E:\Greenfield Coding Workflow\Project-RevTry\`
+**Runtime Root**: `E:\Greenfield Coding Workflow\Project-RevTry\`
+**Registry/Vault Root**: `E:\Greenfield Coding Workflow\Project-RevTry\revtry\`
 
 ---
 
 ## 1. PROJECT OVERVIEW
 
-RevTry is a Revenue Operations Sentry for ChiefAIOfficer.com — an agentic system that monitors the GHL CRM, surfaces prioritized follow-up contacts for Dani Apgar, and generates ICP-qualified outreach campaign drafts for human approval. Built for a two-person GTM team (Chris Daigle, GTM/PTO Engineer + Dani Apgar, Head of Sales), it replaces manual pipeline review with an orchestrator-and-specialists architecture that applies strict, versioned business rules from a knowledge vault, validates every output through a 3-gate maker-checker loop, and compounds its own performance through structured feedback. No code ships between phases — each phase produces a shippable, independently operable capability with zero dependencies on future phases.
+RevTry is a Revenue Operations Sentry for ChiefAIOfficer.com — an agentic system that monitors the GHL CRM, surfaces prioritized follow-up contacts for Dani Apgar, generates warm follow-up drafts grounded in real conversation history, and expands into cold-outbound campaign drafting only after the warm system is validated. Built for a two-person GTM team (Chris Daigle, GTM/PTO Engineer + Dani Apgar, Head of Sales), it replaces manual pipeline review with an orchestrator-and-specialists architecture that applies strict, versioned business rules from a knowledge vault, validates every output through a 3-gate maker-checker loop, and compounds its own performance through structured feedback. No code ships between phases — each phase produces a shippable, independently operable capability with zero dependencies on future phases.
 
 ---
 
 ## 1A. MISSION
 
-Enable a two-person GTM team to operate a fully autonomous Revenue Operations pipeline — identifying, prioritizing, and contacting the right leads — with zero manual CRM work from Dani and zero guesswork from Chris.
+Enable a two-person GTM team to operate a staged, approval-gated Revenue Operations pipeline — identifying, prioritizing, and contacting the right leads — with zero manual CRM work from Dani and zero guesswork from Chris.
 
 ---
 
 ## 1B. TARGET USERS
 
-- **Primary — Dani Apgar (AE, Head of Sales)**: Needs a daily prioritized follow-up list delivered to Slack and ICP-qualified campaign drafts ready to approve in a dashboard — without ever opening the CRM
+- **Primary — Dani Apgar (AE, Head of Sales)**: Needs a daily prioritized warm follow-up briefing and approval-ready drafts in a dashboard — without ever opening the CRM
 - **Secondary — Chris Daigle (GTM/PTO Engineer)**: Needs to orchestrate the system via natural language goals, review validated outputs, manage vault evolution, and handle escalations from the agent system
 - **System Actors (non-human)**: Pipeline Ops Agent, Campaign Craft Agent, Quality Guard — operate autonomously within guardrails defined by Chris and Dani; output never reaches humans without passing all 3 validation gates
 
@@ -88,10 +102,15 @@ Enable a two-person GTM team to operate a fully autonomous Revenue Operations pi
 | Apollo | Lead discovery + enrichment (waterfall step 1) | Primary enrichment source; 200 req/hr API cap |
 | BetterContact | Enrichment waterfall step 2 | Fallback when Apollo returns null email |
 | Clay | Enrichment waterfall step 3 | Final fallback before marking field null |
-| FastAPI | Phase 1 local campaign approval dashboard | Lightweight Python server; local-only; no auth required; Dani reviews drafts before any send |
-| Vercel | Phase 3 deployed approval dashboard | Remote access for Dani; replaces local FastAPI when system is stable |
+| FastAPI + Jinja2 | Local/deployed dashboard + warm review surface | Lightweight Python server for cold draft review, warm briefing review, manual dispatch approval, and the first deployed warm dashboard |
+| Anthropic SDK (`anthropic>=0.40`) | Warm conversation analysis + personalized follow-up drafting | Shared client wrapper required for retries, timeouts, JSON repair, and trace logging |
+| APScheduler (`>=3.10`) | Warm follow-up scheduling | Daily warm run scheduler; disabled by default until manual flow is validated |
+| America/Chicago scheduler timezone | Canonical warm follow-up schedule clock | Keeps daily briefing behavior aligned with team operating time and DST |
+| HTTP Basic Auth | Pre-production dashboard access control | Lean remote protection for approve/reject/generate/dispatch routes before a larger auth system exists |
+| Postgres (`DATABASE_URL`) | Deployed warm persistence backend | Required for deployed warm mode; local file storage remains the dev default |
+| Vercel | Phase 3F deployed warm dashboard | Deployment hardening begins immediately after local/private warm dashboard validation passes |
 | Slack webhook | Async notifications to #revtry | Optional and non-blocking; PASS records explicit `notificationStatus` evidence when `SLACK_WEBHOOK_URL` is missing or unusable |
-| Markdown files | All persistent state and business rules | No database; all state is human-readable files that agents read directly |
+| File-backed JSON/Markdown | Local development state + business rules | Human-readable local state for drafts, briefings, vault rules, and registry artifacts during local development |
 
 **Required environment variables:**
 - `GHL_API_KEY` — GHL Private Integration token
@@ -99,6 +118,19 @@ Enable a two-person GTM team to operate a fully autonomous Revenue Operations pi
 - `GHL_CALENDAR_ID` — (optional) default calendar ID
 - `SLACK_WEBHOOK_URL` — (optional) enables Slack notifications; system degrades gracefully if absent
 - `FEEDBACK_LOOP_POLICY_ENABLED` — (optional) enables dynamic GUARD-004 banned opener updates
+- `ANTHROPIC_API_KEY` — required for Phase 3B/3C conversation analysis + follow-up drafting
+- `DAILY_SCAN_BATCH_SIZE` — canonical max contacts scanned per warm run
+- `FOLLOWUP_SCAN_DAYS` — lookback window for conversation scanning
+- `SCHEDULER_ENABLED` — enables Phase 3E scheduler when set to `true`
+- `SCHEDULER_TIMEZONE` — default `America/Chicago`
+- `MAX_SCAN_CONTACTS` — deprecated alias for `DAILY_SCAN_BATCH_SIZE` during Phase 3A transition only
+- `DASHBOARD_AUTH_ENABLED` — enables HTTP Basic Auth for all dashboard routes; deployed default is `true`
+- `DASHBOARD_BASIC_AUTH_USER` — required when dashboard auth is enabled
+- `DASHBOARD_BASIC_AUTH_PASS` — required when dashboard auth is enabled
+- `STORAGE_BACKEND` — `file` for local dev, `postgres` for deployed warm mode
+- `DATABASE_URL` — canonical Postgres connection string for deployed warm mode
+- `POSTGRES_URL` — fallback only if `DATABASE_URL` is absent
+- `WARM_ONLY_MODE` — hides cold operator surfaces and redirects `/` to `/briefing` in deployed warm-first mode
 
 ---
 
@@ -121,10 +153,22 @@ Enable a two-person GTM team to operate a fully autonomous Revenue Operations pi
 - **US-7**: As Dani, I want approved drafts dispatched via the correct channel (Instantly for cold, GHL for warm) at enforced daily rate limits so that I never accidentally burn domain reputation.
 - **US-8**: As Chris, I want a circuit breaker to halt all sends to an integration when 3 consecutive failures occur so that I'm notified before damage compounds.
 
-### Phase 3 — Revenue Intelligence + Full Loop
+### Phase 3 — Warm Follow-Up System (Current Implementation Priority)
 
-- **US-9**: As Chris, I want a deployed Vercel dashboard showing campaign KPIs (open rate, reply rate, bounce rate) so that I can monitor pipeline health without querying raw data.
-- **US-10**: As Chris, I want the system to automatically graduate from Ramp to Supervised autonomy when sustained KPI targets are met so that daily send limits increase without manual intervention.
+- **US-9**: As Dani, I want a daily warm follow-up briefing grouped by urgency and trigger so that I can work the right active conversations first.
+- **US-10**: As Dani, I want AI-drafted follow-ups that reference the actual prior conversation so that I never send a disconnected warm email.
+- **US-11**: As Chris, I want daily warm-run metrics showing scanned contacts, skipped contacts, analysis failures, draft failures, and estimated Anthropic cost so that I can validate the system without digging through logs.
+- **US-12**: As Chris, I want warm follow-up drafts to use the same shared GHL safety rails and mandatory approval gate as every other outbound path so that speed never bypasses control.
+
+### Phase 3F — Warm Dashboard Deployment to Vercel
+
+- **US-13**: As Dani, I want the validated warm follow-up dashboard available remotely after local/private staging passes so that I can review and approve follow-ups without staying on the dev machine.
+
+### Subsequent Active Track (After Warm Validation + Deployment)
+
+- **US-14**: As Dani, I want cold outbound to return as a separate tested operator flow so that warm follow-up stays lean while cold expansion continues intentionally.
+- **US-15**: As Chris, I want a deployed KPI dashboard showing campaign and follow-up metrics so that I can monitor pipeline health without querying raw data.
+- **US-16**: As Chris, I want the system to graduate autonomy only after validated outbound performance proves it is safe so that send limits increase from evidence, not assumption.
 
 ---
 
@@ -191,6 +235,8 @@ Entity-level schemas spanning the system. Agent-specific JSON output schemas are
 | lockOwner | string | sessionId of claiming session |
 | vaultFilesUsed | string[] | Populated by /execute at runtime |
 
+**Shared DraftApprovalStatus enum**: `PENDING | APPROVED | REJECTED | DISPATCHED | SEND_FAILED`
+
 ### Campaign Draft
 *(Output of Campaign Craft agent)*
 
@@ -203,9 +249,77 @@ Entity-level schemas spanning the system. Agent-specific JSON output schemas are
 | body | string | Personalized; no banned openers; references specific lead/company/industry |
 | channel | "instantly"\|"ghl"\|"heyreach" | From domain_rules.md |
 | bookingLink | string | Always `https://caio.cx/ai-exec-briefing-call` |
-| status | "PENDING"\|"APPROVED"\|"REJECTED" | Set by Dani via dashboard |
+| status | "PENDING"\|"APPROVED"\|"REJECTED"\|"DISPATCHED"\|"SEND_FAILED" | Shared approval/send enum; `SEND_FAILED` is required for Phase 2+ and Phase 3 warm dispatch correctness |
 | rejectionNote | string\|null | Dani's reason; fed to /metabolize |
 | approvalTimestamp | ISO8601\|null | |
+
+### Conversation Analysis
+*(Output of the warm Conversation Analyst agent)*
+
+| Field | Type | Notes |
+|-------|------|-------|
+| contactId | string | FK to Contact.id |
+| sourceConversationId | string | Deterministically selected primary thread |
+| trigger | "no_reply"\|"awaiting_our_response"\|"gone_cold" | Deterministic trigger class before LLM call |
+| triggerReason | string | Plain-language explanation of why the trigger was selected |
+| sentiment | "positive"\|"neutral"\|"negative"\|"cold" | Warm conversation sentiment classification |
+| stage | "new"\|"engaged"\|"stalled"\|"won"\|"lost" | Conversation stage |
+| urgency | "hot"\|"warm"\|"cooling" | Warm-priority bucket |
+| summary | string | Compact summary of the primary thread only |
+| keyTopics | string[] | Extracted topics used downstream for drafting |
+| recommendedAction | string | Recommended next step if a draft should be created |
+
+### Follow-Up Draft
+*(Warm follow-up draft stored separately from cold campaign drafts)*
+
+| Field | Type | Notes |
+|-------|------|-------|
+| draftId | string | Deterministic per `(contactId, sourceConversationId, businessDate)`; same-day reruns overwrite, next-day reruns create a new draft |
+| contactId | string | FK to Contact.id |
+| sourceConversationId | string | Primary thread used for drafting |
+| businessDate | YYYY-MM-DD | Warm business date in `America/Chicago`; used for idempotent draft identity |
+| generationRunId | string | Traceable run identifier for the orchestration pass that wrote the draft |
+| trigger | "no_reply"\|"awaiting_our_response"\|"gone_cold" | Carries forward from Conversation Analysis |
+| urgency | "hot"\|"warm"\|"cooling" | Used for briefing and queue sort |
+| sentiment | "positive"\|"neutral"\|"negative"\|"cold" | |
+| stage | "new"\|"engaged"\|"stalled"\|"won"\|"lost" | |
+| subject | string | ≤60 chars |
+| body | string | <150 words; explicitly references real prior conversation |
+| channel | "ghl" | Warm MVP is GHL email only |
+| status | "PENDING"\|"APPROVED"\|"REJECTED"\|"DISPATCHED"\|"SEND_FAILED" | Approval is separate from dispatch |
+| rejectionNote | string\|null | Dani feedback for warm drafts |
+| approvalTimestamp | ISO8601\|null | |
+| analysisSummary | string | Short analysis carry-forward for UI and debugging |
+
+### Daily Briefing
+*(One per warm run date)*
+
+| Field | Type | Notes |
+|-------|------|-------|
+| briefingDate | YYYY-MM-DD | One daily file per date unless forced |
+| generatedAt | ISO8601 | |
+| contactsScanned | integer | All contacts scanned that day |
+| conversationsEligible | integer | Contacts that passed eligibility filters |
+| contactsSkippedNoConversation | integer | Zero-message or no-primary-thread contacts |
+| contactsSkippedNoEmail | integer | Contacts lacking valid email |
+| analysisFailedCount | integer | Per-contact analysis failures after retry |
+| draftFailedCount | integer | Per-contact draft failures after retry |
+| urgencyBreakdown | object | `hot`, `warm`, `cooling` counts |
+| triggerBreakdown | object | `awaiting_our_response`, `no_reply`, `gone_cold` counts |
+| draftsGenerated | integer | Follow-up drafts produced |
+| estimatedCostUsd | number | Estimated Anthropic cost for the run |
+
+**Warm storage rule:**
+- `outputs/conversations/{contactId}.json` + `index.json`
+- `outputs/conversation_analysis/{contactId}.json` + `index.json`
+- `outputs/followups/{draftId}.json` + `index.json`
+- `outputs/briefings/{YYYY-MM-DD}.json`
+
+**Storage backend rule:**
+- Local development defaults to `STORAGE_BACKEND=file`
+- Deployed warm mode requires `STORAGE_BACKEND=postgres`
+- Public storage APIs stay stable; implementation may swap file vs Postgres backends behind those interfaces
+- Warm deployed mode must refuse startup if `WARM_ONLY_MODE=true` and `STORAGE_BACKEND=file`
 
 ---
 
@@ -247,6 +361,91 @@ Deferred optimization:
   Sub-agent dispatch is intentionally OUT OF SCOPE for this PRD version.
   Reintroduce it only in a future PRD revision after runtime inheritance, locking semantics, and
   maker-checker implications are empirically verified and documented.
+```
+
+### Warm-First Operating Mode
+```
+Primary operator flow (pre-production):
+  /briefing → /followups → approve/reject → /dispatch
+
+Compatibility rule:
+  GET / remains supported while the warm system is being introduced
+  GET /briefing becomes the primary operator entrypoint in docs and training
+  GET /cold-drafts may exist as an explicit cold view alias
+
+Deployment sequence:
+  local/private warm validation first
+  Vercel hardening immediately after that validation passes
+  cold outbound expansion only after the warm deployed path is stable
+```
+
+### Context Isolation Rules
+```
+Warm follow-up tasks may load ONLY:
+  - compacted primary-thread conversation context
+  - compliance/signature rules
+  - minimal CTA/proof context when required for a truthful follow-up
+
+Warm follow-up tasks may NOT load:
+  - vault/playbook/email_angles.md
+  - broad ICP scoring/playbook context
+  - broader revenue intelligence context
+  - autonomy policy context
+
+Cold outbound and autonomy remain active roadmap items,
+but they stay context-isolated from the warm MVP until their own phases start.
+```
+
+### Storage Backend Abstraction
+```
+Local development:
+  STORAGE_BACKEND=file
+  Human-readable JSON/Markdown remains the default local state model
+
+Deployed warm mode:
+  STORAGE_BACKEND=postgres
+  Warm drafts, briefings, analyses, dedup hashes, rate limits, circuit breaker state,
+  and dispatch logs must use the storage backend abstraction rather than assuming local files
+
+Backend rule:
+  Keep public storage APIs stable
+  Swap FileStorageBackend vs PostgresStorageBackend behind those interfaces
+```
+
+### Warm-Only Deployed Mode
+```
+Default deployed posture:
+  WARM_ONLY_MODE=true
+
+Behavior:
+  GET / redirects to /briefing
+  Cold approval routes and /cold-drafts are hidden or return 404
+  /dispatch and /dispatch/run operate on warm items only
+  Nav prioritizes /briefing, /followups, and /dispatch
+
+Local mixed mode may keep cold surfaces visible for compatibility and later Phase 4 work.
+```
+
+### Dashboard Access Control
+```
+Local mixed mode:
+  DASHBOARD_AUTH_ENABLED=false is allowed
+
+Deployed mode:
+  HTTP Basic Auth is required
+  All HTML and mutating dashboard routes require auth when enabled
+  GET /healthz remains unauthenticated for deploy smoke checks
+```
+
+### Shared Send Safety
+```
+All GHL send paths share:
+  - one GHL circuit breaker
+  - one GHL daily send budget
+
+Priority rule:
+  Warm follow-up dispatch consumes shared GHL budget first.
+  Cold GHL sends may use remaining budget only after warm work is satisfied.
 ```
 
 ### PIV Loop (Every Operation)
@@ -352,9 +551,9 @@ Log pattern in vault/feedback/agent_learnings.md
 **Goal:** Stand up the complete infrastructure (vault, guardrails, agents, slash commands, registry) and deliver the first hero outcome: a prioritized GHL follow-up list for Dani with a recorded notification outcome, validated through the 3-gate PIV loop. Phase 0B starts only after Phase 0A passes.
 
 **Deliverables:**
-- `CLAUDE.md` (workspace root `e:/CAIO RevOps Claw/`, <250 lines, all 9 required sections)
+- `CLAUDE.md` (project root `E:\Greenfield Coding Workflow\Project-RevTry\`, <250 lines, all 9 required sections)
 - `.mcp.json` with verified GHL MCP connection
-- 6 runtime slash commands created in `e:/CAIO RevOps Claw/.claude/commands/`: `/prime`, `/plan-task`, `/execute`, `/validate`, `/metabolize`, `/status`
+- 6 runtime slash commands created in `Project-RevTry/.claude/commands/`: `/prime`, `/plan-task`, `/execute`, `/validate`, `/metabolize`, `/status`
 - Complete `revtry/` folder structure with every current-phase file populated
 - Production-required vault files populated with real migrated content and freshness-dated
 - Future-phase files, if created early, marked as formal phase-gated stubs only
@@ -387,7 +586,7 @@ Log pattern in vault/feedback/agent_learnings.md
   - `GET /drafts/{draft_id}` — single draft with full HTML render
   - `POST /drafts/{draft_id}/approve` — mark APPROVED, record timestamp
   - `POST /drafts/{draft_id}/reject` — mark REJECTED with `{"note": "string"}` body
-  - No authentication required (local-only access)
+  - Local mixed mode may run without auth; deployed mode requires HTTP Basic Auth on all dashboard routes
 - **Dashboard data flow:**
   - **Draft storage**: Validated drafts written to `revtry/outputs/drafts/DRAFT-YYYYMMDD-HHMM-N.json` (one JSON file per draft, matching Campaign Draft schema in Section 4)
   - **Draft index**: `revtry/outputs/drafts/index.json` — array of `{draft_id, contact_id, icp_tier, status, created_at, updated_at}`. Status: `PENDING | APPROVED | REJECTED`
@@ -408,40 +607,182 @@ Log pattern in vault/feedback/agent_learnings.md
 - [ ] No draft with enrichment_score <70 reaches Campaign Craft
 - [ ] Legacy `vault/product/product_context.md` content split across all 5 product vault files
 
-### Phase 2 — Outreach Dispatch
+### Phase 2 — Outreach Dispatch Foundation
 
-**Goal:** Wire approved campaign drafts to Instantly (cold email) and HeyReach (LinkedIn), enforce autonomy graduation starting at RAMP, and activate circuit breaker on all outbound integrations.
-
-**Deliverables:**
-- Instantly V2 dispatch: approved cold email drafts at ≤5/day (RAMP) → Tier 1 only
-- HeyReach dispatch: approved LinkedIn drafts at ≤5/day (RAMP)
-- Circuit breaker active on GHL, Instantly, HeyReach, Apollo
-- 3-layer dedup check runs before every dispatch
-- Revenue Intel agent monitoring KPIs; EMERGENCY_STOP on red flag thresholds
-
-**Acceptance Criteria:**
-- [ ] Cold email dispatched ONLY via Instantly (never GHL)
-- [ ] Warm email dispatched ONLY via GHL (never Instantly)
-- [ ] Circuit breaker trips on 3 consecutive failures and halts integration — verified by intentional test
-- [ ] RAMP limits enforced: ≤5 emails/day, Tier 1 leads only, Chris + Dani both approve
-- [ ] KPI red flags trigger EMERGENCY_STOP: open <30% OR 0 replies after 15 sends OR bounce >10% OR unsub >5%
-
-### Phase 3 — Revenue Intelligence + Full Loop
-
-**Goal:** Deploy approval dashboard to Vercel, enable Revenue Intel reporting, and achieve autonomy graduation to Supervised stage through sustained KPI performance.
+**Goal:** Establish the shared outbound safety infrastructure and manual dispatch behavior required by both warm and cold paths without widening the warm MVP unnecessarily.
 
 **Deliverables:**
-- Vercel deployment of approval dashboard (remote access for Dani)
-- Revenue Intel agent producing weekly KPI reports
-- Autonomy graduation from Ramp to Supervised
-- `/metabolize` fully compounding: every completed task updates `vault/feedback/`
+- Shared dispatch safety chain verified in this order: circuit breaker → rate limiter → dedup
+- Manual dispatch path for approved sends with explicit `DISPATCHED` vs `SEND_FAILED` state handling
+- GHL send budget + circuit breaker ready for warm priority routing
+- Instantly/HeyReach integrations remain integration-ready but are not the current MVP acceptance gate
+- Revenue Intel KPI snapshots available for red-flag monitoring, not yet the primary product surface
 
 **Acceptance Criteria:**
-- [ ] Vercel dashboard accessible by Dani without local server running
-- [ ] Revenue Intel report includes: open rate, reply rate, bounce rate, unsubscribe rate, campaign count, date range
-- [ ] Graduation to Supervised: open ≥50% AND reply ≥8% AND bounce <5% sustained for 14 consecutive days — Chris reviews KPIs and explicitly approves graduation
-- [ ] Graduation to Full Autonomy: same metrics for 30 additional days — Dani also approves
-- [ ] `vault/feedback/agent_learnings.md` has ≥5 entries from /metabolize after Phase 3 week 1
+- [ ] Any active send path runs circuit breaker → rate limiter → dedup before outbound API call
+- [ ] Failed sends never become `DISPATCHED`; failure state is `SEND_FAILED`
+- [ ] Circuit breaker trips on 3 consecutive failures and halts the affected integration
+- [ ] Shared GHL send cap is enforced and logged
+- [ ] Instantly and HeyReach remain disabled or manually gated until Phase 4
+
+### Phase 3A — Conversation Reader + Data Models
+
+**Goal:** Build the warm conversation ingestion layer and finalize the data contracts that every later warm component depends on.
+
+**Deliverables:**
+- `src/scripts/ghl_conversation_scanner.py` aligned to the final env contract
+- `ConversationAnalysis`, `FollowUpDraft`, and `DailyBriefing` models finalized in `src/models/schemas.py`
+- Separate warm storage domains defined for conversations, analysis, follow-ups, and briefings through the shared storage backend abstraction
+- `src/models/__init__.py` exports updated to include all warm-phase models
+- Canonical batch-size env set to `DAILY_SCAN_BATCH_SIZE`; `MAX_SCAN_CONTACTS` retained only as a deprecated transition alias
+
+**Acceptance Criteria:**
+- [ ] Only contacts with `totalMessages > 0`, valid email, and a deterministic primary thread are eligible downstream
+- [ ] Zero-message and no-email contacts are skipped before any LLM call and counted in `DailyBriefing`
+- [ ] Primary-thread rule is deterministic: newest `lastMessageDate` wins
+- [ ] Prompt compaction rule is fixed: latest 8 messages from the primary thread, reordered chronologically, trimmed before prompt assembly
+
+### Phase 3B — Conversation Analyst
+
+**Goal:** Classify warm conversation state cheaply and deterministically before any drafting work begins.
+
+**Deliverables:**
+- `src/integrations/anthropic_client.py` shared wrapper for retries, timeouts, JSON repair, and trace logging
+- `src/agents/conversation_analyst_agent.py`
+- `src/tests/test_anthropic_client.py`
+- `src/tests/test_conversation_analyst.py`
+- Deterministic trigger classification before LLM invocation (`awaiting_our_response`, `no_reply`, `gone_cold`)
+
+**Acceptance Criteria:**
+- [ ] Haiku is used only after deterministic trigger classification
+- [ ] Invalid JSON gets one repair retry max; repeated failure records a per-contact analysis failure and continues the batch
+- [ ] Failed analysis never auto-produces a draft
+- [ ] One bad contact never fails the whole daily run
+
+### Phase 3C — Follow-Up Draft Generation
+
+**Goal:** Generate personalized warm follow-up drafts with separate storage and a validation profile that does not inherit cold-outbound assumptions.
+
+**Deliverables:**
+- `src/agents/followup_draft_agent.py`
+- `src/dashboard/followup_storage.py`
+- `src/validators/followup_gate2_validator.py`
+- `src/validators/followup_gate3_validator.py`
+- `src/tests/test_followup_draft_agent.py`
+- `src/tests/test_followup_storage.py`
+- `src/tests/test_followup_validators.py`
+
+**Acceptance Criteria:**
+- [ ] Every warm draft references the real prior conversation and fabricates nothing
+- [ ] Subject <60 chars and body <150 words
+- [ ] CTA is stage-aware; reply CTA is allowed and booking-link CTA is optional
+- [ ] Warm validation profile does not enforce cold angle-tier mapping
+
+### Phase 3D — Warm Review Dashboard
+
+**Goal:** Give Dani a warm-first operator surface without breaking the current cold-draft dashboard entrypoint during the transition.
+
+**Deliverables:**
+- `GET /briefing` (supports `?date=YYYY-MM-DD`)
+- `GET /followups` (supports `?date=YYYY-MM-DD`)
+- `GET /followups/{id}`
+- `POST /followups/{id}/approve`
+- `POST /followups/{id}/reject`
+- `POST /followups/batch/approve`
+- `POST /followups/batch/reject`
+- `POST /followups/generate`
+- `src/dashboard/briefing_loader.py`
+- `briefing.html`, `followup_list.html`, `followup_detail.html`
+- `src/tests/test_briefing_loader.py`
+- `GET /` remains backward-compatible; `GET /cold-drafts` may be added as an explicit alias
+
+**Acceptance Criteria:**
+- [ ] `/briefing` is the documented primary operator entrypoint
+- [ ] `GET /` still renders the existing cold-draft page during the transition
+- [ ] Approve/reject flow works for warm drafts
+- [ ] Warm approval updates file-backed state only and does NOT create GHL tasks or upsert contacts
+
+### Phase 3E — Warm Deploy-Readiness Hardening
+
+**Goal:** Finish the local manual warm system and make it safe to deploy later by adding unified dispatch, auth, durable deployed persistence, idempotent generation, and business-date consistency.
+
+**Deliverables:**
+- `src/pipeline/followup_orchestrator.py`
+- `src/pipeline/followup_dispatcher.py`
+- `src/pipeline/scheduler.py`
+- `src/tests/test_followup_orchestrator.py`
+- `src/tests/test_followup_dispatcher.py`
+- Shared GHL circuit breaker / rate limiter / dedup integration
+- Manual generate → review → approve → dispatch flow
+- Scheduler present but disabled by default
+- Unified `GET /dispatch` + `POST /dispatch/run` warm-first operator flow
+- HTTP Basic Auth for deployed dashboard access
+- `GET /healthz` for deployment smoke checks
+- Storage backend abstraction: file for local dev, Postgres for deployed warm mode
+- Idempotent warm draft generation per `businessDate`
+- Shared business-date helper using `America/Chicago`
+- `GHLClient` fail-fast configuration errors on missing credentials
+- `PHASE_3E_GENERATION_COMPLETE` and `PHASE_3E_DEPLOY_READY` gates tracked separately
+
+**Acceptance Criteria:**
+- [ ] Manual warm generate/review/approve/dispatch flow works end-to-end
+- [ ] Scheduler cannot overlap runs; one daily run per date unless explicitly forced
+- [ ] Warm follow-up dispatch consumes shared GHL budget before cold GHL sends
+- [ ] Any failed send becomes `SEND_FAILED`, not `DISPATCHED`
+- [ ] `POST /dispatch/run` dispatches warm first and returns a unified `{warm, cold, totals}` payload
+- [ ] Deployed mode never exposes approve/reject/generate/dispatch routes without auth
+- [ ] Deployed warm mode refuses file-backed persistence
+- [ ] Same-day warm reruns overwrite the same draft; next-day reruns create a new draft
+- [ ] Business-date logic is consistent with `America/Chicago`
+- [ ] `PHASE_3E_DEPLOY_READY` passes before any Phase 3F work starts
+
+### Phase 3F — Warm Dashboard Deployment to Vercel
+
+**Goal:** Deploy the lean warm dashboard immediately after local/private validation so Dani can review and approve warm follow-ups remotely.
+
+**Deliverables:**
+- Vercel deployment configuration for the warm dashboard surface
+- Deployment env inventory and runtime path strategy for outputs/registry
+- Remote review/approval route verification
+- Deployment smoke-test checklist
+
+**Acceptance Criteria:**
+- [ ] `PHASE_3E_DEPLOY_READY` is PASSED before deployment starts
+- [ ] `/briefing` and `/followups` render correctly in deployed mode
+- [ ] Remote approve/reject actions work
+- [ ] Deployed mode runs with HTTP Basic Auth, `WARM_ONLY_MODE=true`, and Postgres persistence
+- [ ] No cold-flow dependency is required for the first deployed warm MVP
+
+### Phase 4 — Cold-Outbound Expansion
+
+**Goal:** Reactivate cold outbound as a separate tested operator surface after the warm deployed path is stable.
+
+**Deliverables:**
+- Instantly cold-email flow reactivated intentionally
+- HeyReach LinkedIn flow reactivated intentionally
+- Cold dashboard routes/documentation made explicit rather than inherited from the warm path
+- Separate cold context assembly retained; no warm-context leakage
+
+**Acceptance Criteria:**
+- [ ] Cold email dispatches ONLY via Instantly
+- [ ] Warm email dispatches ONLY via GHL
+- [ ] Shared GHL breaker/budget behavior remains intact when cold work is reintroduced
+- [ ] Cold operator flow is tested independently of the warm flow
+
+### Phase 5 — Revenue Intelligence + Autonomy Graduation
+
+**Goal:** Layer analytics, KPI reporting, and autonomy graduation on top of validated warm and cold outbound paths.
+
+**Deliverables:**
+- Revenue Intel agent producing KPI reports and dashboards
+- Autonomy graduation policy activation using validated outbound history
+- `/metabolize` fully compounding across warm + cold execution history
+
+**Acceptance Criteria:**
+- [ ] Revenue Intel reports include warm + cold operational metrics over a defined date range
+- [ ] Graduation to Supervised requires validated KPI history plus Chris approval
+- [ ] Graduation to Full Autonomy requires sustained KPI history plus Chris + Dani approval
+- [ ] `vault/feedback/agent_learnings.md` continues compounding across later phases
 
 ---
 
@@ -455,7 +796,7 @@ Log pattern in vault/feedback/agent_learnings.md
 - GHL DELETE, BULK_DELETE, export_all_contacts, mass_unsubscribe (blocked forever by Quality Guard)
 - Multi-tenant support
 - AI/ML model training
-- Direct database (all state is markdown files)
+- General-purpose database redesign outside the warm deploy-readiness storage backend abstraction
 - Mobile app or public-facing API
 
 ### Not in scope until Phase 1
@@ -470,8 +811,20 @@ Log pattern in vault/feedback/agent_learnings.md
 - Circuit breaker activation
 
 ### Not in scope until Phase 3
+- Warm conversation scanning, Anthropic-backed analysis, and follow-up drafting
+- Warm briefing dashboard routes
+- Warm follow-up orchestrator and scheduler
+
+### Not in scope until Phase 3F
 - Vercel deployment
-- Revenue Intel KPI reporting
+- Remote approval workflow for the warm dashboard
+
+### Not in scope until Phase 4
+- Cold-outbound expansion to Instantly + HeyReach as an active operator surface
+- Cold-context reactivation inside the dashboard
+
+### Not in scope until Phase 5
+- Revenue Intel KPI reporting as the primary product surface
 - Autonomy graduation
 
 ---
@@ -483,8 +836,11 @@ Overall project is complete when ALL of the following pass:
 - [ ] Phase 0: All 33 verification checks pass (Section 18 table) with zero failures
 - [ ] Phase 0: GHL audit completed, triage criteria approved, notification outcome recorded
 - [ ] Phase 1: ≥10 ICP-qualified campaign drafts produced, validated through 3 gates, and reviewed by Dani in the approval dashboard
-- [ ] Phase 2: ≥5 cold emails dispatched via Instantly; circuit breaker tested and verified
-- [ ] Phase 3: Vercel dashboard live and accessible; Revenue Intel report generated; graduation criteria met
+- [ ] Phase 2: shared dispatch safety chain verified; failed sends recorded as `SEND_FAILED`; circuit breaker tested and verified
+- [ ] Phase 3: daily warm briefing generated, reviewed, and manually dispatched through shared GHL safety rails
+- [ ] Phase 3F: Vercel warm dashboard live and accessible without relying on the local server
+- [ ] Phase 4: cold outbound reactivated as a separate tested surface without polluting the warm operator flow
+- [ ] Phase 5: Revenue Intel reporting live and autonomy graduation criteria met
 - [ ] Zero instances of mock data in any validated output (across all phases)
 - [ ] Zero instances of an agent self-approving output (maker-checker always different sessions)
 - [ ] `vault/feedback/agent_learnings.md` has entries from every completed phase
@@ -501,7 +857,10 @@ Overall project is complete when ALL of the following pass:
 | GHL read capabilities needed for audit are missing from the external MCP | High | Blocks Hero Outcome 1 completely | Phase 0A extends the MCP first. No audit or triage run starts until paginated contact reads, pipeline/stage reads, and custom field metadata are verified. |
 | GHL contacts lack ICP-scorable fields (company size, revenue, industry) | Medium | Phase 0 triage fallback required | Use Phase 0 fallback: GHL-native priority list using only verified fields (dateLastActivity, open opportunity, tags, valid email). Full ICP scoring deferred until enrichment live. |
 | Enrichment waterfall returns null for majority of leads | Medium | Phase 1 pipeline stalls | Pipeline Ops reports enrichment_score distribution in audit. If >50% score <70 after full waterfall, escalate to Chris before Campaign Craft runs. |
-| Instantly warmup not complete when Phase 2 starts | Medium | Cannot dispatch cold email | RAMP limit (5/day) is the default; dispatching begins even during warmup at reduced rate. |
+| Anthropic API unavailable, rate-limited, or returns invalid JSON during warm runs | Medium | Phase 3 batch quality degraded | Shared `anthropic_client.py` wrapper handles timeout/retry/one repair retry. Record per-contact failure and continue the batch. |
+| Warm path pulls cold-outbound context and bloats prompts | Medium | Degraded follow-up quality + higher cost | Warm context isolation is a hard rule: no `email_angles.md`, no broad ICP/campaign playbook context unless later phase explicitly requires it. |
+| Vercel deployment cannot access runtime outputs/registry paths safely | Medium | Blocks Phase 3F remote dashboard | Define deployment env inventory and path strategy before deployment; Phase 3F starts only after local/private warm validation is complete. |
+| Instantly warmup not complete when Phase 4 starts | Medium | Cannot dispatch cold email at full scale | Keep cold expansion in Phase 4. Use reduced-rate reactivation until warmup and domain readiness are verified. |
 | Dani rejection rate >80% in Phase 1 | Medium | Delays Phase 2 | /metabolize diagnoses per rejection. If 3+ rejections share same root cause, update vault file + rerun. Escalate to Chris if no improvement after 2 batch cycles. |
 | Legacy vault files missing key business content | High | Agents have no accurate context | Phase 0 migration mapping mandatory before any vault file is written. Source files preserved until migration verified. Chris reviews migration output before any agent task runs. |
 | SLACK_WEBHOOK_URL not configured | Low | Notifications silently fail | System degrades gracefully — triage output still written to `revtry/outputs/`. `/status` command reports notification state. Warning only, not a blocker. |
@@ -513,7 +872,7 @@ Overall project is complete when ALL of the following pass:
 Build every folder and every file listed. Production-required files must contain real content. Future-phase files may exist as formal phase-gated stubs only. Do not leave stray `TODO`, `TBD`, or unlabeled placeholder text.
 
 ```
-e:/CAIO RevOps Claw/
+E:/Greenfield Coding Workflow/Project-RevTry/
 ├── CLAUDE.md                              ← Global config (<250 lines, always loaded)
 ├── .mcp.json                             ← GHL MCP server configuration
 ├── .claude/
@@ -583,6 +942,12 @@ e:/CAIO RevOps Claw/
     │   ├── campaign-craft/
     │   │   ├── config.md
     │   │   └── output_schema.md
+    │   ├── conversation-analyst/
+    │   │   ├── config.md                ← Phase-gated stub until Phase 3B
+    │   │   └── output_schema.md         ← Phase-gated stub until Phase 3B
+    │   ├── followup-draft/
+    │   │   ├── config.md                ← Phase-gated stub until Phase 3C
+    │   │   └── output_schema.md         ← Phase-gated stub until Phase 3C
     │   ├── pipeline-ops/
     │   │   ├── config.md
     │   │   └── output_schema.md
@@ -617,7 +982,11 @@ e:/CAIO RevOps Claw/
     │   └── tasks/
     │
     ├── outputs/
-    │   └── drafts/                      ← Campaign draft JSON files + index (Phase 1+)
+    │   ├── drafts/                      ← Campaign draft JSON files + index (Phase 1+)
+    │   ├── conversations/               ← Warm conversation summaries + index (Phase 3A+)
+    │   ├── conversation_analysis/       ← Warm analysis outputs + index (Phase 3B+)
+    │   ├── followups/                   ← Warm follow-up draft JSON files + index (Phase 3C+)
+    │   └── briefings/                   ← Daily warm briefing files (Phase 3D+)
     │
     └── memory/
         ├── operations_log.md
@@ -632,7 +1001,7 @@ e:/CAIO RevOps Claw/
 
 Rules: Under 250 lines. No implementation details. Links to revtry/ for details.
 
-**Planning note:** This file specifies the runtime `e:/CAIO RevOps Claw/CLAUDE.md`, not the scaffold `Project-RevTry/CLAUDE.md`.
+**Runtime note:** This file specifies the active project-root `Project-RevTry/CLAUDE.md`.
 
 **Required sections:**
 1. Project Context (3 lines max)
@@ -666,6 +1035,7 @@ Rules: Under 250 lines. No implementation details. Links to revtry/ for details.
 ```
 When working on GHL operations → read revtry/vault/integrations/ghl.md
 When working on outreach → read revtry/vault/playbook/email_angles.md + signatures.md + revtry/vault/product/positioning.md + proof_points.md + cta_library.md
+When working on warm follow-up → read revtry/vault/playbook/signatures.md + revtry/vault/compliance/domain_rules.md + revtry/vault/compliance/exclusions.md + revtry/vault/product/proof_points.md + revtry/vault/product/cta_library.md
 When working on lead scoring → read revtry/vault/icp/tier_definitions.md + scoring_rules.md
 When validating any output → read revtry/guardrails/gate1_structural.md + gate2_compliance.md + gate3_alignment.md
 When a task fails → read revtry/registry/failures.md before diagnosis
@@ -678,7 +1048,7 @@ When a task fails → read revtry/registry/failures.md before diagnosis
   "mcpServers": {
     "ghl": {
       "command": "python",
-      "args": ["D:\\Agent Swarm Orchestration\\chiefaiofficer-alpha-swarm\\mcp-servers\\ghl-mcp\\server.py"],
+      "args": ["E:\\Greenfield Coding Workflow\\Project-RevTry\\mcp-servers\\ghl-mcp\\server.py"],
       "env": {
         "GHL_API_KEY": "${GHL_API_KEY}",
         "GHL_LOCATION_ID": "${GHL_LOCATION_ID}"
@@ -692,7 +1062,7 @@ When a task fails → read revtry/registry/failures.md before diagnosis
 
 ### 11.3 Slash Commands (`.claude/commands/`)
 
-These six files are runtime slash commands to be created in `e:/CAIO RevOps Claw/.claude/commands/`. The scaffold commands in `Project-RevTry/.claude/commands/` are planning helpers only and do not satisfy this requirement.
+These six files are runtime slash commands in `Project-RevTry/.claude/commands/`.
 
 #### `/prime` — `prime.md`
 
@@ -1191,7 +1561,59 @@ CEO at consulting firm, 150 employees, $25M revenue
 4. Record which capabilities are verified, missing, or partially supported
 5. Treat the live discovery output as higher priority than both this PRD and `manifest.json`
 
+**Task 3B live discovery protocol (mandatory):**
+1. Chris launches a fresh Claude Code session from an env-ready PowerShell shell in `E:\Greenfield Coding Workflow\Project-RevTry\`
+2. Run `/prime`
+3. Confirm the live observed tool inventory matches the expected 18-tool set
+4. Verify read tools first:
+   - `ghl_list_pipelines`
+   - `ghl_list_custom_fields` (`object_type=contact`)
+   - `ghl_list_custom_fields` (`object_type=opportunity`)
+   - `ghl_list_contacts`
+   - `ghl_list_opportunities`
+   - `ghl_get_contact`
+   - `ghl_get_calendars`
+   - `ghl_get_free_slots`
+   - `ghl_get_calendar_events`
+5. Verify write-capable tools second using only designated safe smoke assets:
+   - `ghl_create_contact`
+   - `ghl_update_contact`
+   - `ghl_add_tag`
+   - `ghl_bulk_create_contacts`
+   - `ghl_create_opportunity`
+   - `ghl_trigger_workflow`
+   - `ghl_create_appointment`
+   - `ghl_get_appointment`
+   - `ghl_update_appointment`
+   - `ghl_delete_calendar_event`
+   - `ghl_update_contact` smoke verification may touch only `firstName`, `lastName`, or `companyName`
+   - `ghl_create_contact` and `ghl_bulk_create_contacts` smoke verification may not include tag payloads; `ghl_add_tag` is the only permitted tag mutation test
+6. Record exact schemas, pagination notes, filter behavior, and sample response keys in `ghl.md`
+7. PASS only if all 18 tools are callable and all write-capable tools are verified against safe smoke assets
+8. If safe smoke assets are missing or unsafe, PAUSE Task 3B and keep `PHASE_0A_MCP_VERIFIED_LIVE` closed
+
+**Required `ghl.md` evidence subsection name:** `## Task 3B Live MCP Verification`
+
+Required fields inside that subsection:
+- `Run Date`
+- `Operator`
+- `Env Ready`
+- `Expected Tool Count`
+- `Observed Tool Count`
+
+Required tool matrix columns:
+- `Tool`
+- `Category`
+- `Sample Input Summary`
+- `Result`
+- `Response Keys Confirmed`
+- `Pagination / Filter Notes`
+- `Asset Used`
+- `Notes`
+
 **If any required read capability is missing:** Hero Outcome 1 is BLOCKED. Log blocker to `revtry/registry/escalations.md`. Do not fake the audit.
+
+**Provisional-state rule:** Any preexisting audit-style inventory, capability notes, or triage criteria already present in `ghl.md` are provisional until the maker-checker Phase 0 audit flow completes. `ghl.md` content alone is not sufficient to treat `PHASE_0_AUDIT_PASSED` or `PHASE_0_TRIAGE_CRITERIA_APPROVED` as passed.
 
 **Critical Contact Fields:**
 - `id`, `email`, `firstName`, `lastName`, `phone`, `companyName`
@@ -1201,9 +1623,15 @@ CEO at consulting firm, 150 employees, $25M revenue
 
 **Safe Read Operations (Phase 0A/0B):** verified list/read tools, `ghl_get_contact`, `ghl_get_calendar_events`
 
-**Safe Write Operations (Phase 1+):** `ghl_update_contact` (fields only), `ghl_add_tag`, `ghl_create_appointment`, `ghl_trigger_workflow`
+**Safe Write Operations (Phase 1+):** `ghl_update_contact` (safe non-tag fields only), `ghl_add_tag`, `ghl_create_appointment`, `ghl_trigger_workflow`
 
-**HARD BLOCKED (NEVER):** `DELETE_CONTACT`, `BULK_DELETE`, mass field updates >10 contacts without human approval, any write without preceding read, `ghl_bulk_create_contacts` without Quality Guard pre-approval
+**Tag-safety rule:** All tag writes are add-only. `ghl_add_tag` is the only permitted tag mutation tool. Generic contact upsert/update payloads may not include `tags`, `tagIds`, or clear/remove semantics.
+
+**Generic contact write allowlist:** `firstName`, `lastName`, `companyName`
+
+**HARD BLOCKED (NEVER):** `DELETE_CONTACT`, `BULK_DELETE`, mass field updates >10 contacts without human approval, any write without preceding read, `ghl_bulk_create_contacts` without Quality Guard pre-approval, tag removal, tag replacement, tag-clear operations, generic contact writes that include `tags` / `tagIds`, generic contact writes that touch blocked fields outside the allowlist
+
+**One-time audited tag recovery procedure:** If an audit-confirmed incident proves tags were removed incorrectly, recovery must use a generated incident manifest sourced from the audit file, a read-only dry-run diff against current contact state, additive-only `ghl_add_tag` writes for missing tags only, and a post-restore verification pass proving every affected contact's current tags are a superset of the incident manifest tags. Recovery may not use generic contact update/upsert paths.
 
 **Named section required in the runtime file:** `## Phase 0 Triage Criteria`
 - Required schema:
@@ -1265,7 +1693,7 @@ Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109
 
 **Gate 3 validation**: Email angle must match the lead's tier per this mapping. A Tier 1 lead receiving a `quick_win` angle → FAIL.
 
-**Do NOT Apply This File To**: LinkedIn outreach (HeyReach has its own message templates). Revival emails (use separate revival angle rules when defined in Phase 2).
+**Do NOT Apply This File To**: Warm follow-up drafts (Phase 3 uses conversation-grounded follow-up rules, not cold angle selection). LinkedIn outreach (HeyReach has its own message templates). Revival emails (use separate revival angle rules when defined in Phase 4).
 
 **Note on `vault/playbook/objections.md` and `vault/playbook/sequences.md`**: Phase-gated stubs for Phase 0. Content to be migrated from legacy playbook files during Phase 1. Both are Campaign Craft task-specific add-ons (never in minimum context package). Add to migration mapping in `revtry/migration/legacy_inventory.md` when source material is identified.
 
@@ -1282,6 +1710,8 @@ Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109
 | Enrichment | integrations/ only | No | No | No | No | No |
 | Segmentation | icp/ only | No | No | No | No | No |
 | Campaign Craft | playbook/ + product/ + compliance/ | No | No | No | No | No |
+| Conversation Analyst | compliance/ + product/ (minimal) | No | No | No | No | No |
+| Follow-Up Draft | playbook/signatures.md + product/ (minimal) + compliance/ | No | No | No | No | No |
 | Pipeline Ops | integrations/ghl.md | No | YES | YES (safe ops only) | No | No |
 | Revenue Intel | All (read-only) | No | YES (read) | No | No | No |
 | Quality Guard | guardrails/ + task spec + candidate output | feedback/ only (via /metabolize) | No | No | No | YES (validation only) |
@@ -1470,11 +1900,13 @@ Goal arrives
 
 ### 13.5 Campaign Craft Agent — `agents/campaign-craft/config.md`
 
-**Purpose**: Draft outreach (email, LinkedIn, sequences)
+**Purpose**: Draft cold/outbound campaign content (email, LinkedIn, sequences)
 **Runtime**: Separate Claude Code session (execution)
 **Session type justification**: Campaign Craft produces DELIVERABLE outputs (campaign drafts for Dani's approval dashboard) that require full 3-gate maker-checker validation with distinct session IDs. Per Section 5 Risk-Tiered Dispatch, deliverable-execution tasks use separate top-level sessions for maker-checker evidence. Campaign Craft qualifies under the "deliverable execution" criterion — it has no GHL permissions and needs no live integration access.
 **Minimum context**: vault/playbook/email_angles.md + vault/playbook/signatures.md + vault/product/positioning.md + vault/product/proof_points.md + vault/product/cta_library.md
 **Task-specific add-ons**: sequences.md, objections.md, or exclusions.md only when task requires them. Never exceed 5 vault files.
+
+**Scope boundary**: Campaign Craft is the cold/outbound drafting surface. It is NOT reused for warm follow-up. Warm follow-up uses the separate Follow-Up Draft agent and may not inherit cold angle logic.
 
 **If angle not specified in task spec → STOP. Report to orchestrator. Never guess.**
 
@@ -1578,22 +2010,125 @@ Note: For audit tasks, `triage` is null. For triage tasks, `audit` is null. Comb
 - Full ICP scoring starts only after enrichment is live OR required fields confirmed in GHL
 - If the audit shows required list/read capabilities are missing: STOP and escalate instead of fabricating an audit or partial triage
 
-### 13.7 Revenue Intel Agent — `agents/revenue-intel/config.md`
+### 13.7 Conversation Analyst — `agents/conversation-analyst/config.md`
+
+**Purpose**: Analyze warm conversation context before any drafting work happens
+**Runtime**: Separate top-level Claude Code session under the current implementation-ready contract
+**Input**: Compact primary-thread context only — not full thread sprawl
+**Model**: Claude Haiku via shared `src/integrations/anthropic_client.py`
+**Allowed context**: `vault/playbook/signatures.md` + `vault/compliance/domain_rules.md` + `vault/compliance/exclusions.md` + minimal product proof/CTA context when needed
+
+**Hard rules:**
+- Deterministic trigger classification runs before the LLM call
+- Only the selected primary thread is analyzed in v1
+- Latest 8 messages from that primary thread are used, reordered chronologically
+- One JSON repair retry max; repeated failure records a per-contact analysis failure and continues the batch
+- Failed analysis must not auto-produce a draft
+
+**Output schema** (`agents/conversation-analyst/output_schema.md`):
+```json
+{
+  "taskId": "string",
+  "agent": "conversation-analyst",
+  "timestamp": "ISO8601",
+  "analyses": [{
+    "contactId": "string",
+    "sourceConversationId": "string",
+    "trigger": "no_reply|awaiting_our_response|gone_cold",
+    "triggerReason": "string",
+    "sentiment": "positive|neutral|negative|cold",
+    "stage": "new|engaged|stalled|won|lost",
+    "urgency": "hot|warm|cooling",
+    "summary": "string",
+    "keyTopics": ["array"],
+    "recommendedAction": "string"
+  }],
+  "count": "integer",
+  "trace": {
+    "vaultFilesUsed": ["array"],
+    "contactsReceived": "integer",
+    "contactsAnalyzed": "integer",
+    "analysisFailures": "integer",
+    "model": "claude-haiku-4-5-20251001"
+  }
+}
+```
+
+### 13.8 Follow-Up Draft Agent — `agents/followup-draft/config.md`
+
+**Purpose**: Generate personalized warm follow-up drafts grounded in the actual prior conversation
+**Runtime**: Separate top-level Claude Code session under the current implementation-ready contract
+**Model**: Claude Sonnet via shared `src/integrations/anthropic_client.py`
+**Input**: `ConversationAnalysis` + compacted primary-thread context + minimal signature/compliance/product context
+
+**Hard rules:**
+- Explicitly reference the real prior conversation
+- No fabricated facts, fake recap, or invented meeting history
+- No banned openers from `vault/playbook/signatures.md`
+- Subject <60 chars; body <150 words
+- CTA is stage-aware: reply CTA allowed; booking-link CTA optional, not mandatory
+- One JSON repair retry max; repeated failure records a per-contact draft failure and continues the batch
+
+**Output schema** (`agents/followup-draft/output_schema.md`):
+```json
+{
+  "taskId": "string",
+  "agent": "followup-draft",
+  "timestamp": "ISO8601",
+  "drafts": [{
+    "draftId": "string",
+    "contactId": "string",
+    "sourceConversationId": "string",
+    "businessDate": "YYYY-MM-DD",
+    "generationRunId": "string",
+    "trigger": "no_reply|awaiting_our_response|gone_cold",
+    "urgency": "hot|warm|cooling",
+    "sentiment": "positive|neutral|negative|cold",
+    "stage": "new|engaged|stalled|won|lost",
+    "subject": "string",
+    "body": "string",
+    "channel": "ghl",
+    "status": "PENDING",
+    "analysisSummary": "string",
+    "trace": {
+      "ctaId": "string|null",
+      "proofPointsUsed": ["array"],
+      "conversationFactsUsed": ["array"]
+    }
+  }],
+  "count": "integer",
+  "trace": {
+    "vaultFilesUsed": ["array"],
+    "draftsGenerated": "integer",
+    "draftFailures": "integer",
+    "model": "claude-sonnet-4-6"
+  }
+}
+```
+
+### 13.9 Revenue Intel Agent — `agents/revenue-intel/config.md`
 
 **Purpose**: Analytics, performance reporting, trend detection
 **Runtime**: Separate top-level Claude Code session under the current implementation-ready contract
 **Hard block**: Cannot write to ANY system. All output goes to `revtry/outputs/` only.
-**Output schema**: Phase-gated stub — full specification deferred to Phase 3 PRD revision. Phase 0 creates `agents/revenue-intel/output_schema.md` as a formal phase-gated stub with fields: Status=STUB, Phase=3, Owner=Chris, Why deferred=Revenue Intel not active until Phase 3, Review trigger=Phase 2 completion.
+**Output schema**: Phase-gated stub — full specification deferred to Phase 5. Phase 0 creates `agents/revenue-intel/output_schema.md` as a formal phase-gated stub with fields: Status=STUB, Phase=5, Owner=Chris, Why deferred=Revenue Intel not active until Phase 5, Review trigger=Phase 4 completion.
 
-### 13.8 Quality Guard — `agents/quality-guard/config.md`
+### 13.10 Quality Guard — `agents/quality-guard/config.md`
 
 **Purpose**: 3-gate validation used by `/validate`
 **Runtime**: Fresh checker session — NEVER the same session that created the candidate output.
 
+**Profile selection rule:**
+- Cold campaign drafts use the existing campaign Gate 2 / Gate 3 profile
+- Warm follow-up drafts use a dedicated follow-up Gate 2 / Gate 3 profile
+- Gate 1 remains structural for both
+
 **Gate vault dependencies (load before running each gate):**
 - Gate 1: No vault dependencies — structural checks only
-- Gate 2: `vault/compliance/exclusions.md` + `vault/compliance/rate_limits.md` + `vault/compliance/domain_rules.md` + `vault/icp/disqualification.md` + `vault/playbook/signatures.md`
-- Gate 3: `vault/icp/scoring_rules.md` + `vault/icp/tier_definitions.md` + `vault/product/proof_points.md` + `vault/product/positioning.md`
+- Gate 2 (campaign profile): `vault/compliance/exclusions.md` + `vault/compliance/rate_limits.md` + `vault/compliance/domain_rules.md` + `vault/icp/disqualification.md` + `vault/playbook/signatures.md`
+- Gate 2 (follow-up profile): `vault/compliance/exclusions.md` + `vault/compliance/rate_limits.md` + `vault/compliance/domain_rules.md` + `vault/playbook/signatures.md`
+- Gate 3 (campaign profile): `vault/icp/scoring_rules.md` + `vault/icp/tier_definitions.md` + `vault/product/proof_points.md` + `vault/product/positioning.md`
+- Gate 3 (follow-up profile): `vault/product/proof_points.md` + `vault/product/positioning.md` + validated conversation summary + trigger metadata
 
 **Gate 1 — Structural Integrity** (`gate1_structural.md`):
 ```
@@ -1608,33 +2143,41 @@ PASS criteria (ALL must pass):
 FAIL on ANY criterion: stop. Do not run Gate 2.
 ```
 
-**Gate 2 — Compliance** (`gate2_compliance.md`):
+**Gate 2 — Compliance** (`gate2_compliance.md` for campaign drafts, `followup_gate2_validator.py` for warm drafts):
 ```
 PASS criteria (ALL must pass):
 - Zero contacts from 7 blocked domains
 - Zero contacts from 27 blocked individual emails
 - For dispatch tasks: daily rate limits not exceeded
 - For dispatch tasks: channel routing correct (cold=Instantly, warm=GHL)
-- ICP disqualification applied per disqualification.md
-- For outreach: CAN-SPAM footer present in every email
-- For outreach: Unsubscribe mechanism present
-- For outreach: No spam trigger words
-- For outreach: Subject ≤60 chars, no ALL CAPS, ≤1 exclamation mark
-- For outreach: No banned openers (GUARD-004 static list)
+- For campaign drafts: ICP disqualification applied per disqualification.md
+- For all outreach: CAN-SPAM footer present in every email
+- For all outreach: Unsubscribe mechanism present
+- For all outreach: No spam trigger words
+- For all outreach: Subject ≤60 chars, no ALL CAPS, ≤1 exclamation mark
+- For all outreach: No banned openers (GUARD-004 static list)
+- For warm follow-up: unsupported thread types are skipped before validation rather than forced through
 
 FAIL on ANY criterion: stop. Do not run Gate 3.
 ```
 
-**Gate 3 — Business Alignment** (`gate3_alignment.md`):
+**Gate 3 — Business Alignment** (`gate3_alignment.md` for campaign drafts, `followup_gate3_validator.py` for warm drafts):
 ```
 PASS criteria (ALL must pass):
-- ICP score math correct (spot-check min(3, record_count))
-- Tier assignments match rubric (Tier 1 ≥80, Tier 2=60-79.9, Tier 3=40-59.9)
-- For outreach: email angle matches lead tier
-- For outreach: content references specific lead/company/industry (not generic)
-- Product proof points match vault/product/proof_points.md (no invented claims)
-- For outreach: booking link is https://caio.cx/ai-exec-briefing-call (exact)
-- For outreach: sender identity is Dani Apgar, Head of Sales, Chief AI Officer
+- Campaign profile:
+  - ICP score math correct (spot-check min(3, record_count))
+  - Tier assignments match rubric (Tier 1 ≥80, Tier 2=60-79.9, Tier 3=40-59.9)
+  - Email angle matches lead tier
+  - Content references specific lead/company/industry (not generic)
+  - Product proof points match vault/product/proof_points.md (no invented claims)
+  - Booking link is https://caio.cx/ai-exec-briefing-call (exact)
+  - Sender identity is Dani Apgar, Head of Sales, Chief AI Officer
+- Follow-up profile:
+  - Draft references the actual prior conversation
+  - Trigger, urgency, and tone fit the conversation stage
+  - No fabricated context or invented proof point
+  - Sender identity is Dani Apgar, Head of Sales, Chief AI Officer
+  - Cold angle-tier mapping is NOT applied to warm follow-up drafts
 
 FAIL: identify specific misalignment (not generic "failed")
 ```
@@ -1673,8 +2216,19 @@ FAIL: identify specific misalignment (not generic "failed")
 | Mock data in validation | Anti-mocking rule. Real data only. |
 | Cold email via GHL | Channel routing violation |
 | Warm email via Instantly | Channel routing violation |
+| Warm follow-up loads cold angle/playbook context without an explicit later-phase rule | Hard block during Phase 3A-3F |
+| Zero-message or no-email contact sent to warm analysis/drafting | Hard block |
+| Warm approval creates GHL task/upsert side effects | Hard block |
+| Failed send recorded as `DISPATCHED` instead of `SEND_FAILED` | Hard block |
+| Any tag removal, tag replacement, or tag-clear operation in GHL | Hard block |
+| Any generic contact upsert/update payload containing `tags`, `tagIds`, or equivalent tag fields | Hard block |
+| Any generic contact update touching blocked fields outside the allowlist in `safe_contact_write_fields.md` | Hard block |
 
 **Stub policy**: Formal phase-gated stubs are allowed only outside the active phase and only when they use the required stub template (`Status`, `Phase`, `Owner`, `Why deferred`, `Review trigger`).
+
+**Tag-safety policy**: All GHL tag writes are add-only. `ghl_add_tag` is the only permitted tag mutation operation. Generic contact writes are field-allowlisted only and must preserve existing tag state.
+
+**Recovery policy**: Any future tag recovery must be executed from an exact incident manifest with dry-run diff, additive-only restore, and post-restore verification. No manual best-guess backfills and no full tag-array replacement are allowed.
 
 **Execution sequencing rule**: `/execute` hard-block preflight checks normalized `Operation Intents` before any execution work, lock claim, or external mutation. Validation-only tasks may read candidate output files, but may not perform real writes while a hard block condition exists.
 
@@ -1702,6 +2256,8 @@ Dynamic (requires `FEEDBACK_LOOP_POLICY_ENABLED=true`): openers in rejection fee
 **GUARD-005 — Generic Density:**
 Trigger: Email lacks specific reference to lead/company/industry → BLOCK
 Rule: Every email must reference at least one specific detail (company name, industry challenge, title-specific pain point)
+
+**Warm follow-up corollary**: Every follow-up email must reference at least one real conversation detail from the selected primary thread. Generic "checking in" follow-ups fail this guard.
 
 ### 14.3 `guardrails/circuit_breaker.md`
 
@@ -1739,6 +2295,8 @@ Rule: Every email must reference at least one specific detail (company name, ind
 **Layer 3 — Cross-Channel**: No lead gets email AND LinkedIn on same day
 **Layer 4 — Pipeline State Dedup**: No lead re-enters a pipeline stage it has already completed or been rejected from within the current campaign cycle (default: 30 days). A lead that was dispatched in Phase 2 may not re-enter the Recon pipeline within the same cycle.
 
+**Warm identity rule**: Canonical GHL dedup key is `ghlContactId` when present. Warm follow-up dispatch must not rely on mixed email-vs-contact-id identity.
+
 All 4 layers checked BEFORE any dispatch. Layers 1-3 apply at dispatch time. Layer 4 applies at task spec creation time (Orchestrator checks before writing Campaign Craft specs).
 
 ### 14.6 `guardrails/deliverability.md`
@@ -1769,7 +2327,7 @@ Save as: `revtry/agents/orchestrator/task_spec_template.md`
 ```markdown
 # Task Spec: [TASK-YYYYMMDD-HHmmssfff-RAND4]
 Created: YYYY-MM-DD HH:MM | Agent: [agent-name] | Priority: P0|P1|P2
-Task Type: capability_audit | triage | enrichment | campaign_draft | dispatch | analytics
+Task Type: capability_audit | triage | enrichment | campaign_draft | conversation_analysis | followup_draft | dispatch | analytics
 
 ## 1. Goal Statement (Binary — testable yes/no)
 [Must be answerable as PASS/FAIL when task completes]
@@ -1787,12 +2345,16 @@ NOT included: [explicitly list excluded files]
 - Source: [exact tool, endpoint, filter]
 - Filter: [exact logic — no interpretation required]
 - Operation Intents: [normalized tokens such as `GHL_READ_CONTACTS`, `GHL_READ_PIPELINES`, `GHL_UPDATE_CONTACT`, `GHL_DELETE_CONTACT`]
-- Required Phase Gates: [exact gate keys from `registry/phase_gates.md`, e.g. `PHASE_0A_MCP_VERIFIED`]
+- Required Phase Gates: [exact gate keys from `registry/phase_gates.md`, e.g. `PHASE_0A_MCP_VERIFIED_LIVE`, `PHASE_0B_WORKSPACE_READY`]
 - Zero-result policy: [RETURN EMPTY WITH REASON | ESCALATE]
 - Partial-data policy: [allowed nullable fields + how to handle them]
 - Fallback policy: [exact fallback allowed if primary data is unavailable]
 - Notification Policy: [required | best_effort | not_applicable]
+- contactWriteFieldAllowlist: [required when any GHL contact write is present; list exact mutable fields]
+- tagMutationPolicy: [add_only]
+- unsafeFieldTouchPolicy: [block_and_escalate]
 - Required gate dependencies: [Gate 2 files] + [Gate 3 files]
+- Context isolation notes: [for warm tasks, explicitly list what cold/revenue-intel/autonomy context is excluded]
 
 ## 4. Output Schema (Exact — agent must match precisely)
 {
@@ -1821,6 +2383,7 @@ IF [specific edge case]: [exact instruction — no improvisation]
 - [ ] No excluded contacts
 - [ ] Schema matches Section 4 exactly
 - [ ] `Operation Intents` match the planned work exactly and pass hard-block lint
+- [ ] Any GHL contact write declares `contactWriteFieldAllowlist`, `tagMutationPolicy=add_only`, and `unsafeFieldTouchPolicy=block_and_escalate`
 - [ ] Every `Required Phase Gate` is already `PASSED` before `/execute` starts
 - [ ] Required gate dependency files are sufficient for Gate 2 and Gate 3
 - [ ] `makerSessionId` and `validatorSessionId` are both recorded before completion
@@ -1900,9 +2463,13 @@ Last Updated: YYYY-MM-DD HH:MM
 
 | Gate | Status | Passed At | Evidence Task ID | Notes |
 |------|--------|-----------|------------------|-------|
-| PHASE_0A_MCP_VERIFIED | NOT_STARTED\|IN_PROGRESS\|PASSED\|BLOCKED | ISO8601\|— | TASK-ID\|— | Set to PASSED only after Step 3A live verification succeeds |
-| PHASE_0B_FOUNDATION_READY | NOT_STARTED\|IN_PROGRESS\|PASSED\|BLOCKED | ISO8601\|— | TASK-ID\|— | Set to PASSED after Step 9 runtime scaffolding is initialized |
+| PHASE_0A_MCP_VERIFIED_LIVE | NOT_STARTED\|IN_PROGRESS\|PASSED\|BLOCKED | ISO8601\|— | TASK-ID\|— | Set to PASSED only after Task 3B live verification succeeds |
+| PHASE_0B_WORKSPACE_READY | NOT_STARTED\|IN_PROGRESS\|PASSED\|BLOCKED | ISO8601\|— | TASK-ID\|— | Set to PASSED after Step 9 runtime scaffolding is initialized |
 | PHASE_0_TRIAGE_CRITERIA_APPROVED | NOT_STARTED\|IN_PROGRESS\|PASSED\|BLOCKED | ISO8601\|— | TASK-ID\|— | Set to PASSED only after Chris + Dani approve the audit-derived triage criteria |
+| PHASE_3_WARM_VALIDATED | NOT_STARTED\|IN_PROGRESS\|PASSED\|BLOCKED | ISO8601\|— | TASK-ID\|— | Set to PASSED only after Phase 3A-3E warm flow is validated locally/private staging |
+| PHASE_3E_TAG_SAFETY_HOTFIX | NOT_STARTED\|IN_PROGRESS\|PASSED\|BLOCKED | ISO8601\|— | TASK-ID\|— | Set to PASSED only after the add-only tag hotfix is validated live on a safe smoke contact |
+| PHASE_3E_TAG_RECOVERY_COMPLETE | NOT_STARTED\|IN_PROGRESS\|PASSED\|BLOCKED | ISO8601\|— | TASK-ID\|— | Set to PASSED only after an incident manifest restore completes with post-restore verification |
+| PHASE_3F_VERCEL_DEPLOYED | NOT_STARTED\|IN_PROGRESS\|PASSED\|BLOCKED | ISO8601\|— | TASK-ID\|— | Set to PASSED only after deployed smoke checks and remote approval verification succeed |
 ```
 
 ### `registry/locks/[TASK-ID].lock`
@@ -1952,7 +2519,7 @@ Execute in this exact order. Do not skip steps.
 - Preserve source files until migration complete and reviewed
 
 **Step 2: CLAUDE.md**
-- Create `e:/CAIO RevOps Claw/CLAUDE.md`
+- Create or maintain `Project-RevTry/CLAUDE.md`
 - Under 250 lines, all 9 sections required (spec in Section 11.1)
 
 **Step 3A: Phase 0A — Extend and verify the external GHL MCP**
@@ -1961,7 +2528,7 @@ Execute in this exact order. Do not skip steps.
 - Record live discovery results, pagination behavior, and filter support in `revtry/vault/integrations/ghl.md`
 - If any required read capability is missing, stop here and log blocker to `revtry/registry/escalations.md`
 
-**Step 3B: Environment readiness + `.mcp.json`**
+**Step 3B: Task 3B live MCP discovery + `.mcp.json` confirmation**
 - Run PowerShell-first preflight:
   ```powershell
   Test-Path 'D:\Agent Swarm Orchestration\chiefaiofficer-alpha-swarm\mcp-servers\ghl-mcp\server.py'
@@ -1969,12 +2536,20 @@ Execute in this exact order. Do not skip steps.
   if (-not $env:GHL_API_KEY -or -not $env:GHL_LOCATION_ID) { throw 'Environment not ready' }
   python 'D:\Agent Swarm Orchestration\chiefaiofficer-alpha-swarm\mcp-servers\ghl-mcp\server.py'
   ```
-- Create `e:/CAIO RevOps Claw/.mcp.json` (config in Section 11.2) only after the preflight passes
+- Create or maintain `Project-RevTry/.mcp.json` (config in Section 11.2) only after the preflight passes
+- Launch a fresh Claude Code session from that same env-ready PowerShell shell. The current shell is not proof that the Claude runtime session inherited the same environment.
+- Run `/prime`
+- Confirm the live observed tool inventory matches the expected 18-tool set
+- Verify read tools first: `ghl_list_pipelines`, `ghl_list_custom_fields` (`contact` and `opportunity`), `ghl_list_contacts`, `ghl_list_opportunities`, `ghl_get_contact`, `ghl_get_calendars`, `ghl_get_free_slots`, `ghl_get_calendar_events`
+- Verify write-capable tools second using only designated safe smoke assets: `ghl_create_contact`, `ghl_update_contact`, `ghl_add_tag`, `ghl_bulk_create_contacts`, `ghl_create_opportunity`, `ghl_trigger_workflow`, `ghl_create_appointment`, `ghl_get_appointment`, `ghl_update_appointment`, `ghl_delete_calendar_event`
+- Record the full evidence matrix in `revtry/vault/integrations/ghl.md` under `## Task 3B Live MCP Verification`
+- If safe smoke assets are missing or unsafe, PAUSE Task 3B and leave `PHASE_0A_MCP_VERIFIED_LIVE` closed
+- If all 18 tools are callable and evidence is complete, set `PHASE_0A_MCP_VERIFIED_LIVE = PASSED`
 - Treat missing Slack webhook as optional and log notification state explicitly
 
 **Step 4: Slash Commands**
-- Create `e:/CAIO RevOps Claw/.claude/commands/` folder
-- Create all 6 command files (specs in Section 11.3)
+- Ensure `Project-RevTry/.claude/commands/` contains all 6 runtime command files
+- Create any missing command files from the specs in Section 11.3
 - Each must include self-validate checklist
 
 **Step 5: revtry/ Folder Structure**
@@ -2006,6 +2581,7 @@ Future-phase files created during this step must use the formal phase-gated stub
 
 **Step 8: Agent Definitions**
 - 6 specialist agents × (config.md + output_schema.md): Recon, Enrichment, Segmentation, Campaign Craft, Pipeline Ops, Revenue Intel
+- If future-phase agent folders are created early (`conversation-analyst`, `followup-draft`), they must use the formal phase-gated stub template until their phase starts
 - Orchestrator: config.md + context_assembly.md + task_spec_template.md
 - Quality Guard: config.md + gate dependency lists
 
@@ -2013,20 +2589,21 @@ Future-phase files created during this step must use the formal phase-gated stub
 - active.md, completed.md, failures.md, escalations.md, phase_gates.md — headers/default gate rows only
 - registry/locks/ — create empty folder for runtime `.lock` files
 - memory/operations_log.md + memory/learnings.md — headers only
-- Backfill `phase_gates.md` so `PHASE_0A_MCP_VERIFIED = PASSED` (from Step 3A) and `PHASE_0B_FOUNDATION_READY = PASSED` (once Step 9 completes) before the first `/execute` run
+- Backfill `phase_gates.md` so `PHASE_0B_WORKSPACE_READY = PASSED` once Step 9 completes. Do NOT pre-pass `PHASE_0A_MCP_VERIFIED_LIVE`; that gate remains blocked until Task 3B succeeds.
 
 **Step 10: First PIV Loop — GHL Audit**
 - Dependency preflight first (Section 0)
-- Orchestrator writes task spec for Pipeline Ops (`task_type = capability_audit`) with normalized `Operation Intents` and `Required Phase Gates = [PHASE_0A_MCP_VERIFIED, PHASE_0B_FOUNDATION_READY]`
+- Orchestrator writes task spec for Pipeline Ops (`task_type = capability_audit`) with normalized `Operation Intents` and `Required Phase Gates = [PHASE_0A_MCP_VERIFIED_LIVE, PHASE_0B_WORKSPACE_READY]`
 - Pipeline Ops runs via `/execute` in a new Claude Code session
 - Output: contact count, field inventory, pipeline stages, stale count, tag taxonomy, custom fields, verified capability matrix
 - Separate fresh session runs `/validate`
 - On PASS: `/metabolize` updates `vault/integrations/ghl.md` with verified tools, parameter support, pagination notes, and the named `Phase 0 Triage Criteria` section as `Status: DRAFT`
+- Do not treat any preexisting audit-style inventory or approval-looking criteria already in `ghl.md` as authoritative gate evidence; the maker-checker audit flow is the source of truth
 - Chris + Dani review the audit-derived triage criteria and must explicitly change the section to `Status: APPROVED` before triage begins
 - After approval, update `registry/phase_gates.md` so `PHASE_0_TRIAGE_CRITERIA_APPROVED = PASSED`
 
 **Step 11: Second PIV Loop — Lead Triage**
-- Orchestrator writes task spec for Pipeline Ops with normalized `Operation Intents` and `Required Phase Gates = [PHASE_0A_MCP_VERIFIED, PHASE_0B_FOUNDATION_READY, PHASE_0_TRIAGE_CRITERIA_APPROVED]`
+- Orchestrator writes task spec for Pipeline Ops with normalized `Operation Intents` and `Required Phase Gates = [PHASE_0A_MCP_VERIFIED_LIVE, PHASE_0B_WORKSPACE_READY, PHASE_0_TRIAGE_CRITERIA_APPROVED]`
 - Pipeline Ops runs via `/execute` in new Claude Code session
 - Applies only the triage criteria recorded in the named `Phase 0 Triage Criteria` section and must STOP unless `Status = APPROVED`
 - Produces prioritized list
@@ -2045,10 +2622,21 @@ Future-phase files created during this step must use the formal phase-gated stub
 | Planning scaffold vs runtime | PRD and CLAUDE.md clearly distinguish scaffold commands from runtime slash commands |
 | CLAUDE.md | Under 250 lines, all 9 sections, no "TBD" |
 | Environment ready | `GHL_API_KEY` and `GHL_LOCATION_ID` present before Phase 0 runs; missing Slack webhook recorded as optional |
+| Claude runtime env | Fresh Claude Code session for Task 3B is launched from an env-ready PowerShell shell |
 | PowerShell standard | Canonical validation commands run in PowerShell on this machine |
 | .mcp.json | GHL MCP loads — live tool discovery recorded |
+| Task 3B inventory | Live observed MCP inventory matches the expected 18-tool set |
 | Phase 0A capability baseline | 14 existing tools from `server.py` recorded accurately |
 | Phase 0A capability extension | `ghl_list_contacts`, `ghl_list_opportunities`, `ghl_list_pipelines`, and `ghl_list_custom_fields` verified live |
+| Contacts pagination | `ghl_list_contacts` pagination and `query` behavior recorded |
+| Opportunities pagination | `ghl_list_opportunities` pagination and `pipeline_id` behavior recorded |
+| Custom fields (contact) | `ghl_list_custom_fields` works with `object_type=contact` |
+| Custom fields (opportunity) | `ghl_list_custom_fields` works with `object_type=opportunity` |
+| Safe write verification | Write-tool smokes use designated safe test assets only |
+| Missing test assets | Unsafe or missing safe test assets cause PAUSE, not PASS |
+| GHL write scope ready | Private Integration token can perform safe smoke writes for contacts/tags/opportunities/calendars/events/workflows |
+| `ghl.md` evidence section | `## Task 3B Live MCP Verification` exists with required fields and tool matrix |
+| Provisional `ghl.md` state | Existing audit-style inventory or approval-looking triage content in `ghl.md` does not count as passed gate evidence |
 | 6 slash commands | /prime, /plan-task, /execute, /validate, /metabolize, /status all functional |
 | Vault completeness | All production-required vault files populated, freshness-dated; future-phase files use formal phase-gated stubs only |
 | Guardrails | All files with binary rules only |
@@ -2075,10 +2663,47 @@ Future-phase files created during this step must use the formal phase-gated stub
 | Maker-checker verified | `makerSessionId` and `validatorSessionId` both recorded and differ |
 | Fallback verified | If ICP fields missing: GHL-native priority list returned (not invented scores) |
 | Hard block verified | `/execute` preflight rejects prohibited `Operation Intents` before candidate output generation |
+| Tag preservation | Approval and enrichment flows add `revtry-*` tags without removing preexisting contact tags |
+| Unsafe tag mutation blocked | MCP `ghl_update_contact` rejects payloads containing `tags`, `tagIds`, or clear/remove semantics |
+| Unsafe contact fields blocked | Generic contact updates touching blocked fields outside the allowlist are refused |
+| Add-only tagging | `ghl_add_tag` remains the only permitted tag mutation path |
+| Live tag-safety smoke | Safe smoke contact proves plain upsert preserves existing tags and additive tagging appends only |
+| Audited tag recovery | Incident manifest + dry-run diff + additive-only restore + post-restore verification complete with every affected contact passing |
 | Combined audit+triage blocked | Pipeline Ops audit and triage remain separate Phase 0 tasks; a combined task is rejected |
 | JSON casing | Machine-readable JSON examples use camelCase end-to-end |
 | Retry counter | Three synthetic failures on same `taskId` allow attempts 1-3 and block attempt 4 |
 | Registry table integrity | `active.md`, `completed.md`, and `failures.md` sample tables have header/row column counts that match |
+
+---
+
+## 18A. PHASE 3 WARM-FIRST VERIFICATION CRITERIA
+
+| Check | Pass Criteria |
+|-------|--------------|
+| Warm eligibility | Zero-message contacts are skipped before analysis; no-email contacts are skipped before drafting |
+| Primary-thread selection | Newest `lastMessageDate` thread is selected deterministically |
+| Prompt compaction | Latest 8 primary-thread messages are reordered chronologically and trimmed before prompt assembly |
+| Context isolation | Warm tasks load only conversation, compliance/signature, and minimal CTA/proof context |
+| Analysis retry behavior | Invalid LLM JSON gets one repair retry; repeated failure records a per-contact analysis failure and continues |
+| Draft retry behavior | Invalid LLM JSON gets one repair retry; repeated failure records a per-contact draft failure and continues |
+| Follow-up validation profile | Warm drafts pass dedicated follow-up Gate 2/3 checks without cold angle-tier requirements |
+| Warm approval semantics | Approve/reject updates follow-up draft state only; no GHL task creation or contact upsert side effects |
+| Warm dispatch state | Failed send becomes `SEND_FAILED`, never `DISPATCHED` |
+| Shared GHL safety | Warm dispatch still runs circuit breaker → rate limiter → dedup and consumes shared GHL budget before cold GHL sends |
+| Briefing telemetry | `DailyBriefing` persists skipped counts, failure counts, urgency/trigger breakdowns, and estimated cost |
+| Route compatibility | Local mixed mode keeps `GET /` backward-compatible; warm-only deployed mode redirects `/` to `/briefing` |
+| Warm dashboard flow | Manual warm generate → review → approve → unified warm-first dispatch works end-to-end |
+| Scheduler posture | Scheduler exists but is disabled by default; manual flow works without it |
+| Auth | Deployed mode requires HTTP Basic Auth on all dashboard routes except `/healthz` |
+| Warm-only mode | `WARM_ONLY_MODE=true` hides cold routes and prevents cold approval/dispatch surfaces from leaking into deployed warm mode |
+| Storage backend | Local dev uses file storage; deployed warm mode requires Postgres-backed persistence |
+| Idempotency | Same-day warm reruns overwrite the same draft; next-day reruns create a new draft |
+| Business date | Briefing, follow-up queue, rate limiter, and scheduler all resolve daily semantics in `America/Chicago` |
+| Health endpoint | `GET /healthz` is open and reports mode + storage backend for deploy smoke checks |
+| Vercel readiness | Warm dashboard local/private validation completes and `PHASE_3E_DEPLOY_READY` passes before deployment begins |
+| Vercel deployment | `/briefing` and `/followups` render in deployed mode; remote approve/reject works; no cold-flow dependency required |
+| Cold-track isolation | Cold outbound remains roadmap-active but does not expand warm prompt context before Phase 4 |
+| Later-track gate | Autonomy graduation and revenue-intel surfaces remain Phase 5 work until warm + cold paths are validated |
 
 ---
 
@@ -2116,6 +2741,16 @@ Future-phase files created during this step must use the formal phase-gated stub
 5. Dani approves/rejects individual items with notes via POST /approve or POST /reject
 6. Rejection notes → `/metabolize` → vault/feedback/campaign_performance.md
 
+**Phase 3 Approval Flow (Warm Follow-Ups):**
+1. Conversation Analyst + Follow-Up Draft pipeline produces warm draft batch
+2. `/execute` saves candidate output
+3. Separate fresh session runs `/validate` with the follow-up profile → PASS
+4. Warm dashboard surfaces the queue at `/briefing` and `/followups`
+5. Dani approves/rejects follow-up drafts
+6. Approval changes file-backed draft state only; it does NOT create GHL tasks or contact upserts
+7. Manual dispatch happens as a separate action through unified `/dispatch/run`
+8. Send success → `DISPATCHED`; send failure → `SEND_FAILED`
+
 ---
 
 ## 20. PHASE ROADMAP
@@ -2130,25 +2765,45 @@ Everything in Phase 0 is infrastructure and the first agent run. No outbound sen
 - First batch ICP-qualified campaign drafts → approval queue
 - Hero Outcome 2 ✅
 
-### Phase 2: Outreach Dispatch
-- Instantly (cold email) + HeyReach (LinkedIn) integration
-- Autonomy graduation starts at RAMP (5/day, Tier 1 only)
-- Circuit breaker wired to all outbound integrations
-- KPI monitoring → EMERGENCY_STOP on red flag
+### Phase 2: Outreach Dispatch Foundation
+- Shared outbound safety chain (circuit breaker, rate limiter, dedup)
+- Manual dispatch correctness and `SEND_FAILED` handling
+- GHL budget + breaker ready for warm-first dispatch priority
 
-### Phase 3: Revenue Intelligence + Full Loop
+### Phase 3: Warm Follow-Up System
+- 3A: Conversation reader + data models
+- 3B: Conversation Analyst
+- 3C: Follow-Up Draft generation
+- 3D: Warm review dashboard
+- 3E: Warm deploy-readiness hardening (unified dispatch, auth, Postgres-backed deployed persistence, idempotent generation, business-date consistency, tag-safety hotfix validation, audited tag recovery if needed)
+
+### Phase 3F: Warm Dashboard Deployment to Vercel
+- Deploy the validated warm dashboard remotely for Dani
+- Starts only after `PHASE_3E_DEPLOY_READY`, `PHASE_3E_TAG_SAFETY_HOTFIX`, and `PHASE_3E_TAG_RECOVERY_COMPLETE`
+- Runs in warm-only mode first with HTTP Basic Auth and Postgres persistence
+
+### Phase 4: Cold-Outbound Expansion
+- Reactivate cold outbound as a separate tested operator surface
+- Keep cold context assembly isolated from the warm path
+
+### Phase 5: Revenue Intelligence + Autonomy Graduation
 - Revenue Intel agent for analytics and trend detection
-- /metabolize fully compounding: system improves from every operation
-- Vercel deployment of approval dashboard
-- Autonomy graduation: Ramp → Supervised when KPI targets met for 14 days (Chris approves)
-- Autonomy graduation: Supervised → Full Autonomy after 30 additional days (Chris + Dani approve)
+- /metabolize fully compounding across warm + cold operations
+- Autonomy graduation: Ramp → Supervised when KPI targets are met and approved
+- Autonomy graduation: Supervised → Full Autonomy after sustained validated performance
 
 ---
 
-*RevTry PRD v2.4 — Greenfield Coding Workflow Standard*
+*RevTry PRD v2.9 — Greenfield Coding Workflow Standard*
 *Source: E:\CAIO RevOps Claw\RevTry_PRD.md v1.0*
 *v2.2 refinements: scaffold-vs-runtime separation, Phase 0A MCP extension gate, PowerShell-first command contracts, pre-execution hard-block enforcement, explicit `notificationStatus` tracking, approval-gated Phase 0 triage criteria, evidence-recorded maker-checker, executable retry/session rules, post-validation metabolism ownership, and formal phase-gated stub policy.*
 *v2.3 refinements (deep peer review): unified verdict schema, approval-gated Phase 0 triage criteria, top-level-session-only runtime execution, explicit `notificationPolicy` and `notificationStatus` handling, `operationIntents`-based hard-block enforcement, and registry/task-spec cohesion across Phase 0.*
 *v2.4 refinements (final hardening pass): requiredPhaseGates binding with phase_gates.md, full lock-file lifecycle and cleanup, deterministic validation ordering, simplified notification enum, collision-resistant task IDs, explicit capability-audit `/metabolize` write scope, separate audit and triage tasks, Campaign Craft output schema, and camelCase machine-readable JSON end-to-end.*
+*v2.5 refinements (warm-first roadmap pass): warm-follow-up-first sequencing, immediate post-validation Vercel deployment, minimal-context isolation for warm prompts, Phase 3A-3F warm system definition, Phase 4 cold-outbound expansion, Phase 5 revenue-intel/autonomy graduation, dedicated warm data models and validators, and explicit warm approval/dispatch guardrails.*
+*v2.6 refinements (pre-Vercel hardening pass): reopened Phase 3E for deploy-readiness hardening, unified warm-first `/dispatch/run`, HTTP Basic Auth for deployed dashboard access, warm-only deployed mode, storage backend abstraction with Postgres for deployed warm persistence, deployment-safe trace logging, idempotent warm draft generation by business date, `America/Chicago` business-date normalization, `GET /healthz`, date-filtered warm routes, and fail-fast GHL credential validation.*
+*v2.7 refinements (tag-safety hardening pass): add-only tag policy across app/runtime/MCP layers, generic contact write allowlist, hard blocks for tag removal/replacement and unsafe contact fields, Task 3B safe-write scope checks, and a required `PHASE_3E_TAG_SAFETY_HOTFIX` gate before Phase 3F resumes.*
+*v2.8 refinements (audited tag recovery pass): one-time incident-manifest restore procedure, dry-run diff + additive-only recovery tooling, post-restore verification requirement, `PHASE_3E_TAG_RECOVERY_COMPLETE`, and completed recovery evidence for the 2026-03-08 tag-loss incident.*
+*v2.9 refinements (project-root consolidation pass): `Project-RevTry` promoted to the authoritative runtime root, project-local `.mcp.json` and runtime slash commands made self-contained, Task 3B bulk-create smoke independently verified, and the next operational chain re-centered on Task 15 before deployment work.*
+*v2.10 refinements (runtime-priority sync pass): immediate next runtime sequence locked to Task 15–22 in the authoritative project root, and legacy CAIO tracker guidance reduced to reference-only redirect behavior so deployment does not jump ahead of the Phase 0 audit/triage chain.*
 *Build sequence: Steps 1–2 (workspace + runtime contract) → Step 3A (MCP extension) → Step 3B–9 (runtime infrastructure) → Step 10 (validated GHL audit) → Step 11 (validated hero outcome)*
 *All files in Section 10 must be created with content. Future-phase files may use only formal phase-gated stubs.*

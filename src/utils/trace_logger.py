@@ -6,10 +6,16 @@ Logs are written to outputs/logs/ with one JSON file per pipeline run.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from persistence.factory import get_storage_backend_name
+
+
+logger = logging.getLogger(__name__)
 
 
 class TraceLogger:
@@ -58,7 +64,12 @@ class TraceLogger:
             "events": self.events,
         }
 
-    def write(self) -> Path:
+    def write(self) -> Path | None:
+        payload = self.to_dict()
+        if get_storage_backend_name() == "postgres":
+            logger.info("trace_json=%s", json.dumps(payload, ensure_ascii=False))
+            return None
+
         outputs_dir = Path(os.environ.get("OUTPUTS_DIR", "outputs"))
         log_dir = outputs_dir / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -67,7 +78,7 @@ class TraceLogger:
         path = log_dir / filename
 
         path.write_text(
-            json.dumps(self.to_dict(), indent=2, ensure_ascii=False),
+            json.dumps(payload, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
         return path

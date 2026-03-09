@@ -8,12 +8,12 @@ Layer 3: GHL tag check — if contact has 'revtry-sent-{channel}' tag, skip
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
+from persistence.factory import get_storage_backend
 
 WINDOW_DAYS = 30
 
@@ -49,21 +49,15 @@ def check_hash_dedup(draft_hash: str) -> tuple[bool, Optional[str]]:
 
     Returns: (is_duplicate, reason)
     """
-    path = _registry_path("sent_hashes.json")
-    hashes = _load_json(path)
-    if isinstance(hashes, dict) and draft_hash in hashes:
-        return True, f"Duplicate hash: {draft_hash} (sent {hashes[draft_hash]})"
+    sent_at = get_storage_backend().get_sent_hash(draft_hash)
+    if sent_at:
+        return True, f"Duplicate hash: {draft_hash} (sent {sent_at})"
     return False, None
 
 
 def record_hash(draft_hash: str) -> None:
     """Record a draft hash after successful dispatch."""
-    path = _registry_path("sent_hashes.json")
-    hashes = _load_json(path)
-    if not isinstance(hashes, dict):
-        hashes = {}
-    hashes[draft_hash] = datetime.now(timezone.utc).isoformat()
-    _save_json(path, hashes)
+    get_storage_backend().record_sent_hash(draft_hash, datetime.now(timezone.utc).isoformat())
 
 
 # ── Layer 2: Contact+Channel Window ──────────────────────────────────────────
@@ -74,15 +68,12 @@ def check_contact_window(contact_id: str, channel: str) -> tuple[bool, Optional[
 
     Returns: (is_duplicate, reason)
     """
-    path = _registry_path("dispatch_log.json")
-    log = _load_json(path)
-    if not isinstance(log, list):
-        return False, None
+    log = get_storage_backend().list_dispatch_entries(channel=channel)
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=WINDOW_DAYS)
 
     for entry in log:
-        if entry.get("contact_id") == contact_id and entry.get("channel") == channel:
+        if entry.get("contact_id") == contact_id:
             sent_at = datetime.fromisoformat(entry["sent_at"])
             if sent_at > cutoff:
                 return True, f"Contact {contact_id} sent via {channel} on {entry['sent_at']} (within {WINDOW_DAYS}d window)"
@@ -92,17 +83,12 @@ def check_contact_window(contact_id: str, channel: str) -> tuple[bool, Optional[
 
 def record_dispatch(contact_id: str, channel: str, draft_id: str) -> None:
     """Record a successful dispatch to the log."""
-    path = _registry_path("dispatch_log.json")
-    log = _load_json(path)
-    if not isinstance(log, list):
-        log = []
-    log.append({
-        "contact_id": contact_id,
-        "channel": channel,
-        "draft_id": draft_id,
-        "sent_at": datetime.now(timezone.utc).isoformat(),
-    })
-    _save_json(path, log)
+    get_storage_backend().record_dispatch(
+        contact_id,
+        channel,
+        draft_id,
+        datetime.now(timezone.utc).isoformat(),
+    )
 
 
 # ── Layer 3: GHL Tag Check ───────────────────────────────────────────────────
@@ -119,8 +105,9 @@ async def check_ghl_tag(contact_id: str, channel: str, ghl=None) -> tuple[bool, 
 
     tag = f"revtry-sent-{channel}"
     try:
-        contact = await ghl.get_contact(contact_id)
-        tags = contact.get("tags", []) if contact else []
+        contact_response = await ghl.get_contact(contact_id)
+        contact = contact_response.get("contact", contact_response) if contact_response else {}
+        tags = contact.get("tags", []) if isinstance(contact, dict) else []
         if tag in tags:
             return True, f"Contact {contact_id} has GHL tag '{tag}'"
     except Exception:

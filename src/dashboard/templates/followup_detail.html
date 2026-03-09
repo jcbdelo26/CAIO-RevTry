@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Warm Follow-Up {{ draft.draft_id[:8] }} — RevTry Dashboard{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 16px;">
+    <a href="/followups" style="color: #007bff; text-decoration: none;">&larr; Back to Follow-Ups</a>
+</div>
+
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
+        <div>
+            <h2 style="margin-bottom:4px;">{{ draft.contact_name or draft.contact_id }}</h2>
+            <p style="color:#666;">{{ draft.company_name or draft.contact_email }}</p>
+        </div>
+        {% set status_value = draft.status.value %}
+        <span class="badge {% if status_value == 'PENDING' %}badge-pending{% elif status_value == 'APPROVED' %}badge-approved{% elif status_value == 'SEND_FAILED' %}badge-send-failed{% elif status_value == 'DISPATCHED' %}badge-approved{% else %}badge-rejected{% endif %}">
+            {{ status_value }}
+        </span>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:20px;">
+        <div>
+            <strong>Trigger</strong><br>{{ draft.trigger.value }}
+        </div>
+        <div>
+            <strong>Urgency</strong><br>{{ draft.urgency.value }}
+        </div>
+        <div>
+            <strong>Stage</strong><br>{{ draft.stage.value }}
+        </div>
+        <div>
+            <strong>Sentiment</strong><br>{{ draft.sentiment.value }}
+        </div>
+    </div>
+
+    {% if analysis %}
+    <div style="margin-bottom:20px;">
+        <h3 style="margin-bottom:8px;">Analysis Summary</h3>
+        <p style="margin-bottom:8px;">{{ analysis.conversation_summary }}</p>
+        <p style="color:#666;"><strong>Recommended action:</strong> {{ analysis.recommended_action }}</p>
+    </div>
+    {% endif %}
+
+    <h3 style="margin-bottom:8px;">Subject</h3>
+    <p style="margin-bottom:16px; font-weight:600;">{{ draft.subject }}</p>
+
+    <h3 style="margin-bottom:8px;">Follow-Up Draft</h3>
+    <div class="email-preview" style="margin-bottom:20px;">{{ draft.body }}</div>
+
+    <h3 style="margin-bottom:8px;">Conversation Context</h3>
+    {% if primary_thread and primary_thread.messages %}
+    <div style="display:grid; gap:10px; max-height:420px; overflow:auto;">
+        {% for message in primary_thread.messages %}
+        <div style="padding:12px; border-radius:8px; background:{% if message.direction == 'inbound' %}#eef6ff{% else %}#f8f9fa{% endif %}; border:1px solid #e5e7eb;">
+            <div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; flex-wrap:wrap;">
+                <strong>{{ message.direction|upper }}</strong>
+                <span style="color:#666; font-size:0.85em;">{{ message.timestamp }}</span>
+            </div>
+            {% if message.subject %}
+            <div style="margin-bottom:6px;"><strong>Subject:</strong> {{ message.subject }}</div>
+            {% endif %}
+            <div style="white-space:pre-wrap;">{{ message.body }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% elif conversation %}
+    <p style="color:#666;">Conversation file is present but no primary thread messages were loaded.</p>
+    {% else %}
+    <p style="color:#666;">No conversation context is available for this draft.</p>
+    {% endif %}
+
+    {% if draft.status.value == 'PENDING' %}
+    <div style="margin-top:24px; display:flex; gap:12px; flex-wrap:wrap;">
+        <form method="POST" action="/followups/{{ draft.draft_id }}/approve">
+            <button type="submit" class="btn btn-approve">Approve</button>
+        </form>
+        <form method="POST" action="/followups/{{ draft.draft_id }}/reject" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="text" name="reason" placeholder="Rejection reason..." style="padding:8px; border:1px solid #ddd; border-radius:4px; width:300px;">
+            <button type="submit" class="btn btn-reject">Reject</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -156,6 +156,7 @@ class TestEnrichCandidates:
 
         mock_ghl = MagicMock()
         mock_ghl.upsert_contact = AsyncMock()
+        mock_ghl.add_contact_tag = AsyncMock()
         mock_ghl.close = AsyncMock()
 
         results = await enrich_candidates(
@@ -168,6 +169,7 @@ class TestEnrichCandidates:
         assert results[0]["identity_check"] == "IDENTITY_MISMATCH"
         assert results[0]["ghl_writeback"] == "BLOCKED_IDENTITY_MISMATCH"
         mock_ghl.upsert_contact.assert_not_called()
+        mock_ghl.add_contact_tag.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_dry_run_no_ghl_writes(self):
@@ -177,6 +179,7 @@ class TestEnrichCandidates:
 
         mock_ghl = MagicMock()
         mock_ghl.upsert_contact = AsyncMock()
+        mock_ghl.add_contact_tag = AsyncMock()
         mock_ghl.close = AsyncMock()
 
         results = await enrich_candidates(
@@ -188,6 +191,7 @@ class TestEnrichCandidates:
 
         assert results[0]["ghl_writeback"] == "SKIPPED"
         mock_ghl.upsert_contact.assert_not_called()
+        mock_ghl.add_contact_tag.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_commit_writes_to_ghl(self):
@@ -196,7 +200,8 @@ class TestEnrichCandidates:
         mock_enricher.close = AsyncMock()
 
         mock_ghl = MagicMock()
-        mock_ghl.upsert_contact = AsyncMock()
+        mock_ghl.upsert_contact = AsyncMock(return_value={"contact": {"id": "ghl-001"}})
+        mock_ghl.add_contact_tag = AsyncMock(return_value={"success": True})
         mock_ghl.close = AsyncMock()
 
         results = await enrich_candidates(
@@ -210,6 +215,28 @@ class TestEnrichCandidates:
         mock_ghl.upsert_contact.assert_called_once()
         call_kwargs = mock_ghl.upsert_contact.call_args
         assert call_kwargs.kwargs.get("email") or call_kwargs[1].get("email") or "jane@acme.com" in str(call_kwargs)
+        assert "tags" not in mock_ghl.upsert_contact.await_args.kwargs
+        mock_ghl.add_contact_tag.assert_awaited_once_with("ghl-001", "revtry-enriched")
+
+    @pytest.mark.asyncio
+    async def test_commit_tag_write_failure_marks_failed(self):
+        mock_enricher = MagicMock()
+        mock_enricher.enrich = AsyncMock(return_value=SAMPLE_ENRICHMENT_RECORD)
+        mock_enricher.close = AsyncMock()
+
+        mock_ghl = MagicMock()
+        mock_ghl.upsert_contact = AsyncMock(return_value={"contact": {"id": "ghl-001"}})
+        mock_ghl.add_contact_tag = AsyncMock(side_effect=Exception("tag add failed"))
+        mock_ghl.close = AsyncMock()
+
+        results = await enrich_candidates(
+            [SAMPLE_CANDIDATE],
+            commit=True,
+            enricher=mock_enricher,
+            ghl=mock_ghl,
+        )
+
+        assert results[0]["ghl_writeback"] == "FAILED: tag add failed"
 
     @pytest.mark.asyncio
     async def test_limit_flag(self):

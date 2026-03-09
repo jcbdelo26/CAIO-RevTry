@@ -157,19 +157,22 @@ async def enrich_candidates(
         # GHL writeback — HARDBLOCK-5: only if --commit and identity OK
         if commit and identity_ok and ghl:
             try:
-                tags = ["revtry-enriched"]
-                await ghl.upsert_contact(
+                upsert_result = await ghl.upsert_contact(
                     email=email,
                     first_name=first_name or "",
                     last_name=last_name or "",
                     company_name=record.company_name or company_name or "",
-                    tags=tags,
                 )
+                contact = upsert_result.get("contact", {})
+                contact_id = contact.get("id") or ghl_id
+                if not contact_id:
+                    raise RuntimeError("GHL contact ID missing during enrichment writeback")
+                await ghl.add_contact_tag(contact_id, "revtry-enriched")
                 result_entry["ghl_writeback"] = "WRITTEN"
-                print(f"    → GHL upsert OK")
+                print(f"    → GHL upsert + additive tag OK")
             except Exception as e:
                 result_entry["ghl_writeback"] = f"FAILED: {e}"
-                print(f"    → GHL upsert FAILED: {e}")
+                print(f"    → GHL writeback FAILED: {e}")
         elif commit and not identity_ok:
             result_entry["ghl_writeback"] = "BLOCKED_IDENTITY_MISMATCH"
             print(f"    → GHL writeback BLOCKED (identity mismatch)")

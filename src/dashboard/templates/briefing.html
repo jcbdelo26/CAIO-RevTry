@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Warm Briefing — RevTry Dashboard{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+    <div>
+        <h2 style="margin-bottom: 8px;">Warm Follow-Up Briefing</h2>
+        <p style="color:#666;">{{ briefing.date }} · prioritized queue for conversation-aware follow-up review.</p>
+    </div>
+    <div>
+        <a href="/followups" class="btn" style="background:#007bff;color:white;">Open Follow-Up Queue</a>
+    </div>
+</div>
+
+<div style="display:flex; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+    <div class="stat-card">
+        <div class="count">{{ briefing.total_contacts_scanned }}</div>
+        <div class="label">Scanned</div>
+    </div>
+    <div class="stat-card">
+        <div class="count">{{ briefing.contacts_needing_followup }}</div>
+        <div class="label">Need Follow-Up</div>
+    </div>
+    <div class="stat-card">
+        <div class="count" style="color:#721c24;">{{ briefing.hot_count }}</div>
+        <div class="label">Hot</div>
+    </div>
+    <div class="stat-card">
+        <div class="count" style="color:#856404;">{{ briefing.warm_count }}</div>
+        <div class="label">Warm</div>
+    </div>
+    <div class="stat-card">
+        <div class="count" style="color:#0c5460;">{{ briefing.cooling_count }}</div>
+        <div class="label">Cooling</div>
+    </div>
+    <div class="stat-card">
+        <div class="count">{{ briefing.drafts_generated }}</div>
+        <div class="label">Drafts</div>
+    </div>
+</div>
+
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:16px; margin-bottom:16px;">
+    <div class="card">
+        <h3 style="margin-bottom:12px;">Trigger Breakdown</h3>
+        <div style="display:grid; gap:8px;">
+            <div><strong>Awaiting Our Response</strong>: {{ briefing.awaiting_response_count }}</div>
+            <div><strong>No Reply</strong>: {{ briefing.no_reply_count }}</div>
+            <div><strong>Gone Cold</strong>: {{ briefing.gone_cold_count }}</div>
+        </div>
+    </div>
+    <div class="card">
+        <h3 style="margin-bottom:12px;">Skipped / Failures</h3>
+        <div style="display:grid; gap:8px;">
+            <div><strong>No Conversation</strong>: {{ briefing.contacts_skipped_no_conversation }}</div>
+            <div><strong>No Email</strong>: {{ briefing.contacts_skipped_no_email }}</div>
+            <div><strong>Analysis Failed</strong>: {{ briefing.analysis_failed_count }}</div>
+            <div><strong>Draft Failed</strong>: {{ briefing.draft_failed_count }}</div>
+            <div><strong>Estimated Cost</strong>: ${{ "%.2f"|format(briefing.estimated_cost_usd) }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+        <h3>Top Warm Queue</h3>
+        <span style="color:#666;">{{ queue|length }} item(s)</span>
+    </div>
+    {% if queue %}
+    <table>
+        <thead>
+            <tr>
+                <th>Contact</th>
+                <th>Status</th>
+                <th>Urgency</th>
+                <th>Trigger</th>
+                <th>Stage</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in queue[:5] %}
+            <tr>
+                <td>
+                    <div><strong>{{ item.contactName or item.contactId }}</strong></div>
+                    <div style="color:#666; font-size:0.85em;">{{ item.companyName or item.contactEmail }}</div>
+                </td>
+                <td>
+                    {% if item.status %}
+                        {% set status_value = item.status.value %}
+                        <span class="badge {% if status_value == 'PENDING' %}badge-pending{% elif status_value == 'APPROVED' %}badge-approved{% elif status_value == 'SEND_FAILED' %}badge-send-failed{% elif status_value == 'DISPATCHED' %}badge-approved{% else %}badge-rejected{% endif %}">
+                            {{ status_value }}
+                        </span>
+                    {% else %}
+                        <span style="color:#666;">No draft yet</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.urgency %}
+                    <span class="badge badge-{{ item.urgency.value|replace('_', '-') }}">{{ item.urgency.value }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ item.trigger.value if item.trigger else "—" }}</td>
+                <td>{{ item.stage.value if item.stage else "—" }}</td>
+                <td>
+                    {% if item.draftId %}
+                    <a href="/followups/{{ item.draftId }}" class="btn" style="background:#007bff;color:white;">View Draft</a>
+                    {% else %}
+                    <span style="color:#666;">Pending draft</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No warm follow-up queue is available yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

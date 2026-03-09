@@ -8,17 +8,23 @@
 <!-- Stats Row -->
 <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
     <div class="stat-card">
-        <div class="count">{{ queue | length }}</div>
-        <div class="label">Queued (Approved)</div>
+        <div class="count">{{ warm_queue | length }}</div>
+        <div class="label">Warm Queue</div>
     </div>
     <div class="stat-card">
-        <div class="count">{{ dispatched | length }}</div>
-        <div class="label">Dispatched</div>
+        <div class="count">{{ warm_dispatched | length }}</div>
+        <div class="label">Warm Sent</div>
     </div>
     <div class="stat-card">
         <div class="count">{{ daily_limit }}</div>
         <div class="label">Daily Limit / Channel</div>
     </div>
+    {% if not warm_only_mode %}
+    <div class="stat-card">
+        <div class="count">{{ cold_queue | length }}</div>
+        <div class="label">Cold Queue</div>
+    </div>
+    {% endif %}
     {% if kpi %}
     <div class="stat-card">
         <div class="count" style="color: {% if kpi.emergency_stop %}#dc3545{% else %}#28a745{% endif %};">
@@ -80,39 +86,39 @@
 </div>
 {% endif %}
 
-<!-- Dispatch Queue -->
+<!-- Warm Dispatch Queue -->
 <div class="card">
-    <h3 style="margin-bottom: 12px;">Dispatch Queue ({{ queue | length }} approved)</h3>
-    {% if queue %}
+    <h3 style="margin-bottom: 12px;">Warm Dispatch Queue ({{ warm_queue | length }} approved)</h3>
+    {% if warm_queue %}
     <table>
         <thead>
             <tr>
                 <th>Contact</th>
                 <th>Subject</th>
-                <th>Channel</th>
-                <th>Tier</th>
+                <th>Trigger</th>
+                <th>Status</th>
             </tr>
         </thead>
         <tbody>
-            {% for d in queue %}
+            {% for d in warm_queue %}
             <tr>
-                <td>{{ d.contact_id[:12] }}...</td>
-                <td><a href="/drafts/{{ d.draft_id }}">{{ d.subject[:40] }}</a></td>
-                <td>{{ d.channel.value }}</td>
-                <td><span class="badge badge-tier{{ d.icp_tier }}">T{{ d.icp_tier }}</span></td>
+                <td>{{ d.contact_name or d.contact_id }}</td>
+                <td><a href="/followups/{{ d.draft_id }}">{{ d.subject[:50] }}</a></td>
+                <td>{{ d.trigger.value }}</td>
+                <td><span class="badge badge-approved">{{ d.status.value }}</span></td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p style="color: #666;">No approved drafts in queue.</p>
+    <p style="color: #666;">No approved warm follow-ups in queue.</p>
     {% endif %}
 </div>
 
-<!-- Recent Dispatches -->
+<!-- Warm Dispatch History -->
 <div class="card">
-    <h3 style="margin-bottom: 12px;">Recent Dispatches ({{ dispatched | length }})</h3>
-    {% if dispatched %}
+    <h3 style="margin-bottom: 12px;">Warm Dispatch History ({{ warm_dispatched | length }})</h3>
+    {% if warm_dispatched %}
     <table>
         <thead>
             <tr>
@@ -124,7 +130,72 @@
             </tr>
         </thead>
         <tbody>
-            {% for d in dispatched %}
+            {% for d in warm_dispatched %}
+            <tr>
+                <td>{{ d.contact_name or d.contact_id }}</td>
+                <td><a href="/followups/{{ d.draft_id }}">{{ d.subject[:50] }}</a></td>
+                <td>ghl</td>
+                <td>{{ d.dispatched_at or 'N/A' }}</td>
+                <td>
+                    {% if d.dispatch_error %}
+                    <span class="badge badge-rejected">ERROR</span>
+                    {% else %}
+                    <span class="badge badge-approved">SENT</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #666;">No warm dispatches yet.</p>
+    {% endif %}
+</div>
+
+{% if not warm_only_mode %}
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Cold Dispatch Queue ({{ cold_queue | length }} approved)</h3>
+    {% if cold_queue %}
+    <table>
+        <thead>
+            <tr>
+                <th>Contact</th>
+                <th>Subject</th>
+                <th>Channel</th>
+                <th>Tier</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in cold_queue %}
+            <tr>
+                <td>{{ d.contact_id[:12] }}...</td>
+                <td><a href="/drafts/{{ d.draft_id }}">{{ d.subject[:40] }}</a></td>
+                <td>{{ d.channel.value }}</td>
+                <td><span class="badge badge-tier{{ d.icp_tier }}">T{{ d.icp_tier }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #666;">No approved cold drafts in queue.</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3 style="margin-bottom: 12px;">Cold Dispatch History ({{ cold_dispatched | length }})</h3>
+    {% if cold_dispatched %}
+    <table>
+        <thead>
+            <tr>
+                <th>Contact</th>
+                <th>Subject</th>
+                <th>Channel</th>
+                <th>Dispatched At</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in cold_dispatched %}
             <tr>
                 <td>{{ d.contact_id[:12] }}...</td>
                 <td><a href="/drafts/{{ d.draft_id }}">{{ d.subject[:40] }}</a></td>
@@ -142,7 +213,8 @@
         </tbody>
     </table>
     {% else %}
-    <p style="color: #666;">No dispatches yet.</p>
+    <p style="color: #666;">No cold dispatches yet.</p>
     {% endif %}
 </div>
+{% endif %}
 {% endblock %}

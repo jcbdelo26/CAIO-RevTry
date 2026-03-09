@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from persistence.factory import get_storage_backend
+
 
 FAILURE_THRESHOLD = 3
 COOLDOWN_SECONDS = 1800  # 30 minutes
@@ -42,20 +44,25 @@ class CircuitBreaker:
     INTEGRATIONS = ("instantly", "ghl", "heyreach", "apollo")
 
     def __init__(self, state_path: Path | None = None):
-        self._path = state_path or _state_path()
+        self._path = state_path
         self._state = self._load()
 
     def _load(self) -> dict[str, dict[str, Any]]:
+        if self._path is None:
+            return get_storage_backend().load_circuit_breaker_state(self.INTEGRATIONS)
         if self._path.exists():
             data = json.loads(self._path.read_text(encoding="utf-8"))
-            # Ensure all integrations are present
-            for key in self.INTEGRATIONS:
-                if key not in data:
-                    data[key] = _default_entry()
-            return data
-        return {key: _default_entry() for key in self.INTEGRATIONS}
+        else:
+            data = {}
+        for key in self.INTEGRATIONS:
+            if key not in data:
+                data[key] = _default_entry()
+        return data
 
     def _save(self) -> None:
+        if self._path is None:
+            get_storage_backend().save_circuit_breaker_state(self._state)
+            return
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._path.write_text(json.dumps(self._state, indent=2), encoding="utf-8")
 

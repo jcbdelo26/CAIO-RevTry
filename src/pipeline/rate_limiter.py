@@ -14,6 +14,9 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from persistence.factory import get_storage_backend
+from utils.business_time import current_business_date
+
 
 # Autonomy level limits
 RAMP_LIMIT = 5
@@ -25,7 +28,7 @@ def _counter_path(date_str: str | None = None) -> Path:
     registry = Path(os.environ.get("REGISTRY_DIR", "registry"))
     registry.mkdir(parents=True, exist_ok=True)
     if not date_str:
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        date_str = current_business_date()
     return registry / f"dispatch_counter_{date_str}.json"
 
 
@@ -36,17 +39,24 @@ class DailyRateLimiter:
         self,
         daily_limit: int | None = None,
         state_path: Path | None = None,
+        business_date: str | None = None,
     ):
         self._limit = daily_limit or int(os.environ.get("DISPATCH_DAILY_LIMIT", str(RAMP_LIMIT)))
-        self._path = state_path or _counter_path()
+        self._business_date = business_date or current_business_date()
+        self._path = state_path
         self._counters = self._load()
 
     def _load(self) -> dict[str, int]:
+        if self._path is None:
+            return get_storage_backend().load_rate_limit_counts(self._business_date)
         if self._path.exists():
             return json.loads(self._path.read_text(encoding="utf-8"))
         return {}
 
     def _save(self) -> None:
+        if self._path is None:
+            get_storage_backend().save_rate_limit_counts(self._business_date, self._counters)
+            return
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._path.write_text(json.dumps(self._counters, indent=2), encoding="utf-8")
 

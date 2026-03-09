@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from dashboard.storage import get_draft, list_drafts, mark_dispatched
+from dashboard.storage import get_draft, list_drafts, mark_dispatched, mark_send_failed
 from integrations.ghl_client import GHLClient
 from models.schemas import DraftApprovalStatus
 from pipeline.circuit_breaker import CircuitBreaker
@@ -145,7 +145,7 @@ async def dispatch_approved_drafts(
         except Exception as e:
             result.failed += 1
             result.errors.append(f"{draft.draft_id}: {e}")
-            mark_dispatched(draft.draft_id, channel, error=str(e))
+            mark_send_failed(draft.draft_id, channel, str(e))
 
     # Cleanup
     if own_ghl and ghl:

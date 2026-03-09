@@ -95,8 +95,9 @@ def list_drafts() -> list[StoredDraft]:
     status_order = {
         DraftApprovalStatus.PENDING: 0,
         DraftApprovalStatus.APPROVED: 1,
-        DraftApprovalStatus.DISPATCHED: 2,
-        DraftApprovalStatus.REJECTED: 3,
+        DraftApprovalStatus.SEND_FAILED: 2,
+        DraftApprovalStatus.DISPATCHED: 3,
+        DraftApprovalStatus.REJECTED: 4,
     }
     drafts.sort(key=lambda d: (status_order.get(d.status, 9), d.created_at), reverse=False)
     # Stable sort: first by status (ascending), then reverse by created_at within group
@@ -165,7 +166,6 @@ def reject_draft(
 def mark_dispatched(
     draft_id: str,
     channel: str,
-    error: Optional[str] = None,
 ) -> Optional[StoredDraft]:
     """Mark a draft as DISPATCHED after successful outreach send."""
     draft = get_draft(draft_id)
@@ -175,8 +175,29 @@ def mark_dispatched(
     draft.status = DraftApprovalStatus.DISPATCHED
     draft.dispatched_at = datetime.now(timezone.utc).isoformat()
     draft.dispatch_channel = channel
-    if error:
-        draft.dispatch_error = error
+
+    draft_path = _drafts_dir() / f"{draft_id}.json"
+    draft_path.write_text(
+        json.dumps(draft.model_dump(by_alias=True), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return draft
+
+
+def mark_send_failed(
+    draft_id: str,
+    channel: str,
+    error: str,
+) -> Optional[StoredDraft]:
+    """Mark a draft as SEND_FAILED after a confirmed outreach failure."""
+    draft = get_draft(draft_id)
+    if not draft:
+        return None
+
+    draft.status = DraftApprovalStatus.SEND_FAILED
+    draft.send_failed_at = datetime.now(timezone.utc).isoformat()
+    draft.dispatch_channel = channel
+    draft.dispatch_error = error
 
     draft_path = _drafts_dir() / f"{draft_id}.json"
     draft_path.write_text(

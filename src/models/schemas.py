@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ── Enums ──────────────────────────────────────────────────────────────────────
@@ -34,6 +34,7 @@ class DraftApprovalStatus(str, Enum):
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     DISPATCHED = "DISPATCHED"
+    SEND_FAILED = "SEND_FAILED"
 
 
 class IcpTier(str, Enum):
@@ -260,6 +261,7 @@ class StoredDraft(BaseModel):
     rejection_reason: Optional[str] = Field(None, alias="rejectionReason")
     ghl_push_result: Optional[dict] = Field(None, alias="ghlPushResult")
     dispatched_at: Optional[str] = Field(None, alias="dispatchedAt")
+    send_failed_at: Optional[str] = Field(None, alias="sendFailedAt")
     dispatch_channel: Optional[str] = Field(None, alias="dispatchChannel")
     dispatch_error: Optional[str] = Field(None, alias="dispatchError")
 
@@ -273,5 +275,158 @@ class ValidationResult(BaseModel):
     checks_run: int = Field(..., alias="checksRun")
     checks_passed: int = Field(..., alias="checksPassed")
     failures: list[str] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+
+# ── Follow-Up System Enums ────────────────────────────────────────────────
+
+
+class ConversationSentiment(str, Enum):
+    POSITIVE = "positive"
+    NEUTRAL = "neutral"
+    NEGATIVE = "negative"
+    COLD = "cold"
+
+
+class ConversationStage(str, Enum):
+    NEW = "new"
+    ENGAGED = "engaged"
+    STALLED = "stalled"
+    WON = "won"
+    LOST = "lost"
+
+
+class FollowUpTrigger(str, Enum):
+    NO_REPLY = "no_reply"
+    AWAITING_OUR_RESPONSE = "awaiting_our_response"
+    GONE_COLD = "gone_cold"
+
+
+class UrgencyLevel(str, Enum):
+    HOT = "hot"
+    WARM = "warm"
+    COOLING = "cooling"
+
+
+# ── Conversation Data Models ──────────────────────────────────────────────
+
+
+class ConversationMessage(BaseModel):
+    """A single message in a GHL conversation thread."""
+    message_id: str = Field(..., alias="messageId")
+    conversation_id: str = Field(..., alias="conversationId")
+    direction: str  # "inbound" or "outbound"
+    body: str = ""
+    subject: Optional[str] = None
+    timestamp: str
+    message_type: str = Field("Email", alias="messageType")
+
+    model_config = {"populate_by_name": True}
+
+
+class ConversationThread(BaseModel):
+    """A conversation thread with its messages."""
+    conversation_id: str = Field(..., alias="conversationId")
+    contact_id: str = Field(..., alias="contactId")
+    last_message_date: str = Field(..., alias="lastMessageDate")
+    message_count: int = Field(0, alias="messageCount")
+    messages: list[ConversationMessage] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+
+class ContactConversationSummary(BaseModel):
+    """Full conversation context for a single contact."""
+    contact_id: str = Field(..., alias="contactId")
+    ghl_contact_id: str = Field(..., alias="ghlContactId")
+    first_name: str = Field("", alias="firstName")
+    last_name: str = Field("", alias="lastName")
+    email: str = ""
+    company_name: str = Field("", alias="companyName")
+    title: str = ""
+    threads: list[ConversationThread] = Field(default_factory=list)
+    total_messages: int = Field(0, alias="totalMessages")
+    last_inbound_date: Optional[str] = Field(None, alias="lastInboundDate")
+    last_outbound_date: Optional[str] = Field(None, alias="lastOutboundDate")
+    scanned_at: str = Field(..., alias="scannedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class ConversationAnalysis(BaseModel):
+    """Output of the sentiment/analysis agent for a contact."""
+    contact_id: str = Field(..., alias="contactId")
+    source_conversation_id: str = Field(..., alias="sourceConversationId")
+    sentiment: ConversationSentiment
+    stage: ConversationStage
+    trigger: FollowUpTrigger
+    trigger_reason: str = Field(..., alias="triggerReason")
+    urgency: UrgencyLevel
+    key_topics: list[str] = Field(default_factory=list, alias="keyTopics")
+    recommended_action: str = Field(..., alias="recommendedAction")
+    conversation_summary: str = Field(..., alias="conversationSummary")
+    days_since_last_activity: int = Field(0, alias="daysSinceLastActivity")
+    analyzed_at: str = Field(..., alias="analyzedAt")
+
+    model_config = {"populate_by_name": True}
+
+
+class FollowUpDraft(BaseModel):
+    """A conversation-aware follow-up draft for HoS review."""
+    draft_id: str = Field(..., alias="draftId")
+    contact_id: str = Field(..., alias="contactId")
+    ghl_contact_id: str = Field(..., alias="ghlContactId")
+    source_conversation_id: str = Field(..., alias="sourceConversationId")
+    business_date: str = Field("", alias="businessDate")
+    generation_run_id: str = Field("", alias="generationRunId")
+    contact_email: str = Field(..., alias="contactEmail")
+    contact_name: str = Field("", alias="contactName")
+    company_name: str = Field("", alias="companyName")
+    subject: str
+    body: str
+    trigger: FollowUpTrigger
+    urgency: UrgencyLevel
+    sentiment: ConversationSentiment
+    stage: ConversationStage
+    analysis_summary: str = Field("", alias="analysisSummary")
+    status: DraftApprovalStatus = DraftApprovalStatus.PENDING
+    created_at: str = Field(..., alias="createdAt")
+    approved_at: Optional[str] = Field(None, alias="approvedAt")
+    rejected_at: Optional[str] = Field(None, alias="rejectedAt")
+    rejection_reason: Optional[str] = Field(None, alias="rejectionReason")
+    dispatched_at: Optional[str] = Field(None, alias="dispatchedAt")
+    send_failed_at: Optional[str] = Field(None, alias="sendFailedAt")
+    dispatch_error: Optional[str] = Field(None, alias="dispatchError")
+
+    model_config = {"populate_by_name": True}
+
+    @model_validator(mode="after")
+    def _fill_backward_compatible_defaults(self) -> "FollowUpDraft":
+        if not self.business_date and self.created_at:
+            self.business_date = self.created_at[:10]
+        if not self.generation_run_id:
+            self.generation_run_id = self.draft_id
+        return self
+
+
+class DailyBriefing(BaseModel):
+    """Daily briefing summary for the HoS dashboard."""
+    date: str
+    total_contacts_scanned: int = Field(0, alias="totalContactsScanned")
+    contacts_needing_followup: int = Field(0, alias="contactsNeedingFollowup")
+    contacts_skipped_no_conversation: int = Field(0, alias="contactsSkippedNoConversation")
+    contacts_skipped_no_email: int = Field(0, alias="contactsSkippedNoEmail")
+    hot_count: int = Field(0, alias="hotCount")
+    warm_count: int = Field(0, alias="warmCount")
+    cooling_count: int = Field(0, alias="coolingCount")
+    no_reply_count: int = Field(0, alias="noReplyCount")
+    awaiting_response_count: int = Field(0, alias="awaitingResponseCount")
+    gone_cold_count: int = Field(0, alias="goneColdCount")
+    drafts_generated: int = Field(0, alias="draftsGenerated")
+    analysis_failed_count: int = Field(0, alias="analysisFailedCount")
+    draft_failed_count: int = Field(0, alias="draftFailedCount")
+    estimated_cost_usd: float = Field(0.0, alias="estimatedCostUsd")
+    generated_at: str = Field(..., alias="generatedAt")
 
     model_config = {"populate_by_name": True}

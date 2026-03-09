@@ -1,213 +1,241 @@
-# CLAUDE.md — RevTry (Revenue Operations Sentry)
+# CLAUDE.md - RevTry
 
-This file guides all development work inside `E:\Greenfield Coding Workflow\Project-RevTry\`.
-
----
-
-## Project Overview
-
-RevTry is a Revenue Operations Sentry for ChiefAIOfficer.com. It discovers leads via Apollo, enriches them through a waterfall, scores them against an ICP model, drafts personalized outreach, validates drafts through a 3-gate system, and surfaces them on a FastAPI approval dashboard for human review before any send.
+This file guides development inside `E:\Greenfield Coding Workflow\Project-RevTry\`.
 
 ---
 
-## Workspace Layout
+## 1. Project State
 
-All development code lives here. Operational docs (vault, registry, agent configs) live in the runtime workspace and are referenced via environment variables.
+RevTry is a warm-first Revenue Operations system for ChiefAIOfficer.com.
 
+Current build sequence:
+- Phase 0A-0B: runtime foundation + live GHL triage
+- Phase 1: cold campaign draft pipeline + approval dashboard
+- Phase 2: shared dispatch safety
+- Phase 3A-3E: warm follow-up system + pre-Vercel hardening
+- Phase 3F: Vercel deployment of the warm dashboard
+- Phase 4: cold-outbound expansion
+- Phase 5: revenue intelligence + autonomy graduation
+
+Current code status:
+- Warm generation, review, approval, dispatch, scheduler, auth, storage abstraction, and deploy-readiness hardening are implemented
+- Full local suite is green: `318 passed`
+- Task 3B evidence is reconciled in the project-local runtime copy; the next operational task is `Task 15` in `revtry/registry/MASTER-TASKS.md`
+
+---
+
+## 2. Workspace Boundaries
+
+All development is consolidated in:
+- `E:\Greenfield Coding Workflow\Project-RevTry\`
+
+Key subdirectories:
+- `src/` — application codebase
+- `revtry/vault/` — business rules, integration configs, compliance
+- `revtry/registry/` — task tracking, phase gates, operational state
+- `revtry/guardrails/` — validation gates, hard blocks, policies
+- `revtry/agents/` — agent configs and output schemas
+- `mcp-servers/ghl-mcp/` — GHL MCP server (local copy)
+
+MCP config:
+- `E:\Greenfield Coding Workflow\Project-RevTry\.mcp.json` — project-root MCP server config
+
+---
+
+## 3. Core Architecture
+
+Warm-first operator path:
+- `/briefing` -> `/followups` -> approve/reject -> `/dispatch`
+
+Compatibility rules:
+- `GET /` stays backward-compatible in local mixed mode
+- `WARM_ONLY_MODE=true` redirects `GET /` to `/briefing`
+- Cold routes are hidden or blocked in deployed warm-only mode
+
+Shared send safety:
+- circuit breaker -> rate limiter -> dedup before any send
+- warm GHL sends have priority over cold GHL sends
+
+Warm context isolation:
+- allowed: compacted primary-thread conversation context, signatures/compliance, minimal CTA/proof context
+- not allowed: cold angle playbooks, broad ICP/campaign context, revenue-intel context, autonomy context
+
+Approval rule:
+- no email is ever sent without explicit human approval
+- warm approval changes draft state only; it does not create GHL tasks or upsert contacts
+
+---
+
+## 4. Persistence Model
+
+Local development:
+- `STORAGE_BACKEND=file`
+- human-readable JSON/Markdown stays the default local state model
+
+Deployed warm mode:
+- `STORAGE_BACKEND=postgres`
+- `DATABASE_URL` is canonical, `POSTGRES_URL` is fallback only
+- deployed warm mode must not use file-backed persistence
+
+Implemented abstraction:
+- `src/persistence/base.py`
+- `src/persistence/file_store.py`
+- `src/persistence/postgres_store.py`
+- `src/persistence/factory.py`
+- `src/persistence/schema.sql`
+
+Systems already using the backend abstraction:
+- warm follow-up storage
+- briefing loading
+- conversation scan persistence
+- conversation analysis persistence
+- warm orchestrator
+- warm dispatcher
+- rate limiter
+- circuit breaker
+- dedup
+
+Trace logging:
+- file backend: writes trace files
+- postgres backend: emits structured JSON logs instead of writing local trace files
+
+---
+
+## 5. Dashboard and Access Control
+
+Implemented routes:
+- `GET /healthz`
+- `GET /briefing`
+- `GET /followups`
+- `GET /followups/{id}`
+- `POST /followups/{id}/approve`
+- `POST /followups/{id}/reject`
+- `POST /followups/batch/approve`
+- `POST /followups/batch/reject`
+- `POST /followups/generate`
+- `GET /dispatch`
+- `POST /dispatch/run`
+- `GET /dispatch/status`
+
+Auth:
+- `DASHBOARD_AUTH_ENABLED=false` is acceptable for local mixed mode
+- deployed dashboard requires HTTP Basic Auth
+- all dashboard HTML and mutating routes are protected when auth is enabled
+- `/healthz` stays open for smoke checks
+
+Warm-only deployed mode:
+- `WARM_ONLY_MODE=true`
+- cold dashboard routes should not be exposed remotely
+
+---
+
+## 6. Important Code Areas
+
+Agents:
+- `src/agents/conversation_analyst_agent.py`
+- `src/agents/followup_draft_agent.py`
+- `src/agents/campaign_craft_agent.py`
+
+Dashboard:
+- `src/dashboard/app.py`
+- `src/dashboard/auth.py`
+- `src/dashboard/followup_storage.py`
+- `src/dashboard/briefing_loader.py`
+- `src/dashboard/storage.py`
+
+Pipeline:
+- `src/pipeline/followup_orchestrator.py`
+- `src/pipeline/followup_dispatcher.py`
+- `src/pipeline/scheduler.py`
+- `src/pipeline/dispatcher.py`
+- `src/pipeline/rate_limiter.py`
+- `src/pipeline/circuit_breaker.py`
+- `src/pipeline/dedup.py`
+
+Integrations:
+- `src/integrations/ghl_client.py`
+- `src/integrations/anthropic_client.py`
+
+Models:
+- `src/models/schemas.py`
+- `src/models/__init__.py`
+
+Utilities:
+- `src/utils/business_time.py`
+- `src/utils/trace_logger.py`
+
+Validators:
+- `src/validators/followup_gate2_validator.py`
+- `src/validators/followup_gate3_validator.py`
+- `src/validators/gate1_validator.py`
+
+---
+
+## 7. Environment Contract
+
+Critical env vars:
+- `GHL_API_KEY`
+- `GHL_LOCATION_ID`
+- `APOLLO_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `VAULT_DIR`
+- `REGISTRY_DIR`
+- `DASHBOARD_AUTH_ENABLED`
+- `DASHBOARD_BASIC_AUTH_USER`
+- `DASHBOARD_BASIC_AUTH_PASS`
+- `STORAGE_BACKEND`
+- `DATABASE_URL`
+- `WARM_ONLY_MODE`
+- `DAILY_SCAN_BATCH_SIZE`
+- `FOLLOWUP_SCAN_DAYS`
+- `SCHEDULER_ENABLED`
+- `SCHEDULER_TIMEZONE`
+
+Defaults:
+- `SCHEDULER_TIMEZONE=America/Chicago`
+- `SCHEDULER_ENABLED=false`
+- `MAX_SCAN_CONTACTS` is deprecated and exists only as a temporary alias
+
+Fail-fast rule:
+- `GHLClient` raises `MissingGhlCredentialsError` when GHL credentials are absent
+
+---
+
+## 8. Development Rules
+
+- Keep warm prompts lean; do not load cold playbook context into warm agents
+- Keep `GET /` backward-compatible in local mixed mode
+- Do not mark failed sends as `DISPATCHED`; use `SEND_FAILED`
+- Same-day warm reruns must be idempotent by `businessDate`
+- Business-date logic must resolve in `America/Chicago`
+- Do not add remote deployment assumptions that depend on local file paths
+- Do not treat green tests as a substitute for runtime `Task 3B`
+
+---
+
+## 9. Validation Commands
+
+```powershell
+# Syntax
+Get-ChildItem -Path src -Recurse -Filter *.py | ForEach-Object { python -m py_compile $_.FullName }
+
+# Full suite
+Set-Location 'E:\Greenfield Coding Workflow\Project-RevTry\src'
+python -m pytest tests -q
 ```
-Project-RevTry/
-├── CLAUDE.md                    # This file
-├── .env                         # Environment variables (gitignored)
-├── .env.example                 # Template with all required vars
-├── .claude/
-│   ├── PRD.md                   # Product Requirements Document
-│   └── commands/                # Scaffold slash commands
-├── .agents/
-│   └── plans/                   # Phase implementation plans
-└── src/
-    ├── pyproject.toml           # Project config + dependencies
-    ├── requirements.txt         # Flat dependency list
-    ├── models/
-    │   └── schemas.py           # 18 Pydantic v2 models (all agent I/O)
-    ├── utils/
-    │   ├── vault_loader.py      # Parse vault .md files → typed data
-    │   ├── exclusion_checker.py # Domain/email blocklist checker
-    │   └── trace_logger.py      # JSON trace logging
-    ├── integrations/
-    │   ├── apollo_client.py     # Apollo.io async HTTP client
-    │   ├── bettercontact_client.py  # Deferred — kept for reactivation
-    │   ├── clay_client.py       # Deferred — kept for reactivation
-    │   └── waterfall.py         # Apollo-only enrichment waterfall
-    ├── agents/
-    │   ├── recon_agent.py       # Lead discovery via Apollo search
-    │   ├── enrichment_agent.py  # Waterfall enrichment orchestrator
-    │   ├── segmentation_agent.py # ICP scoring + tier assignment
-    │   └── campaign_craft_agent.py # Draft generation with angles
-    ├── validators/
-    │   ├── gate1_validator.py   # Structural validation (6 checks)
-    │   ├── gate2_validator.py   # Compliance validation (10 checks)
-    │   ├── gate3_validator.py   # Business alignment (7 checks)
-    │   └── guards.py            # GUARD-001 through GUARD-005
-    ├── dashboard/
-    │   ├── app.py               # FastAPI approval dashboard
-    │   ├── storage.py           # File-based draft storage
-    │   └── templates/           # Jinja2 HTML templates
-    ├── pipeline/
-    │   ├── runner.py            # E2E pipeline orchestrator
-    │   └── feedback_processor.py # Rejection feedback handler
-    └── tests/
-        └── (tests co-located here)
-```
 
-### Runtime Workspace (Read-Only Reference)
-
-Vault and registry docs at `e:/CAIO RevOps Claw/revtry/`:
-
-```
-revtry/
-├── vault/
-│   ├── integrations/            # API configs (apollo.md, etc.)
-│   ├── compliance/              # exclusions.md, signatures.md
-│   ├── scoring/                 # scoring_rules.md, tier_definitions.md
-│   └── product/                 # proof_points.md, cta_library.md
-├── registry/                    # Task registry, locks, phase gates
-└── agents/                      # Agent config .md files
-```
-
-Connected via `.env`:
-```
-VAULT_DIR=e:/CAIO RevOps Claw/revtry/vault
-REGISTRY_DIR=e:/CAIO RevOps Claw/revtry/registry
-```
+Current baseline:
+- `318 passed`
+- `28` test files
 
 ---
 
-## Tech Stack
+## 10. Current Next Steps
 
-| Technology | Purpose |
-|------------|---------|
-| Python 3.11+ | All application code |
-| Pydantic v2 | Data models + validation |
-| httpx | Async HTTP client (Apollo API) |
-| FastAPI + Jinja2 | Approval dashboard |
-| python-dotenv | Environment variable loading |
-| Apollo.io API | Lead discovery + enrichment (primary) |
-| GoHighLevel (GHL) | CRM source of truth |
+Immediate runtime roadmap:
+1. Start `Task 15` in `revtry/registry/MASTER-TASKS.md`
+2. Continue the Phase 0 audit chain through `Task 22` before opening new operational scope
 
----
-
-## Environment Variables
-
-See `.env.example` for all required variables. Critical ones:
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `GHL_API_KEY` | Yes | GoHighLevel API access |
-| `GHL_LOCATION_ID` | Yes | GHL location identifier |
-| `APOLLO_API_KEY` | Yes | Apollo.io lead data |
-| `VAULT_DIR` | Yes | Path to vault markdown files |
-| `REGISTRY_DIR` | Yes | Path to task registry |
-
----
-
-## Architecture
-
-### Pipeline Flow
-
-```
-Recon → Enrichment → GUARD-003 filter → Segmentation → DQ filter → Campaign Craft → Gates 1-3 → Dashboard
-```
-
-### ICP Scoring
-
-6 components (max base 100): Company Size (20), Title (25), Industry (20), Revenue (15), Tech Signal (10), Engagement (10). Base score multiplied by industry multiplier (0.8x-1.5x). Tiers: T1 >= 80, T2 >= 60, T3 >= 40, DQ < 40.
-
-### Enrichment
-
-Apollo-only for Phase 1. BetterContact and Clay are deferred (code exists, not active in waterfall). Deferred providers always return `SKIPPED` status in `WaterfallTrace`.
-
-### Validation
-
-- **Gate 1** — Structural: valid JSON, required fields, types, no placeholders (6 checks)
-- **Gate 2** — Compliance: subject length, exclamations, ALL-CAPS, banned openers, CAN-SPAM, booking link (10 checks)
-- **Gate 3** — Business alignment: ICP math, angle-tier match, specificity, proof points (7 checks)
-- **Guards** — GUARD-001 (rejection count), GUARD-002 (duplicate hash), GUARD-003 (enrichment score < 70), GUARD-004 (banned openers), GUARD-005 (generic density)
-
----
-
-## Development Commands
-
-```bash
-# Validate syntax (all 28 files)
-find src -name "*.py" -exec python -m py_compile {} +
-
-# Run import chain check
-cd src && python -c "
-from models.schemas import *
-from utils.vault_loader import *
-from utils.exclusion_checker import *
-from utils.trace_logger import *
-from integrations.apollo_client import *
-from integrations.waterfall import *
-from agents.recon_agent import *
-from agents.enrichment_agent import *
-from agents.segmentation_agent import *
-from agents.campaign_craft_agent import *
-from validators.gate1_validator import *
-from validators.gate2_validator import *
-from validators.gate3_validator import *
-from validators.guards import *
-from dashboard.storage import *
-from pipeline.feedback_processor import *
-from pipeline.runner import *
-print('All imports OK')
-"
-
-# Start approval dashboard
-cd src && uvicorn dashboard.app:app --reload --port 8000
-
-# Run tests
-cd src && python -m pytest tests/
-```
-
----
-
-## Code Patterns
-
-- **Pydantic v2** with `model_config = ConfigDict(populate_by_name=True)` and camelCase aliases
-- **Vault loading** via `vault_loader.py` — parses markdown tables into typed dataclasses
-- **Async HTTP** via httpx with timeout (30s), retry (2x on 5xx), rate limit handling (429)
-- **File-based storage** for drafts at `outputs/drafts/*.json`
-- **Trace logging** — every agent produces a JSON trace file
-
----
-
-## Agent Communication Rules
-
-1. **Recommended Next Steps** — At the end of every completed phase, session, or milestone, always output a numbered list of recommended next steps for the user. Never end a session without telling the user what comes next.
-
-2. **Non-Technical Navigational Guides** — When the user must take action on external platforms (obtaining API keys, configuring integrations, account setup), present a step-by-step guide written for a non-technical PTO. Include exact URLs, precise UI navigation ("click the gear icon top-right"), what to copy/paste, and expected outcomes at each step.
-
-3. **Ask Before Assuming** — Use AskUserQuestion proactively when facing architecture choices, scope decisions, provider selection, or any ambiguity that affects the product. Do not guess — ask.
-
----
-
-## Anti-Patterns
-
-- Do not fabricate, estimate, or mock data (anti-mocking rule)
-- Do not pass leads with `enrichment_score < 70` to Campaign Craft (GUARD-003)
-- Do not pass leads with `email = null` to outreach
-- Do not use BetterContact or Clay providers (deferred)
-- Do not commit `.env` files with real API keys
-- Do not end a phase or session without presenting recommended next steps
-- Do not assume user decisions — ask via AskUserQuestion when in doubt
-
----
-
-## Current Status
-
-**Phase 1 complete**: 28 Python files, ~3,300 lines. All modules compile and import.
-
-**Enrichment**: Apollo-only (BetterContact deferred — no subscription; Clay deferred — webhook/table model).
-
-**Next**: Populate remaining vault stubs (`proof_points.md`, `cta_library.md`), write tests, end-to-end validation with live API keys.
+Later code roadmap:
+1. Keep `Task 62` queued until the Phase 0 audit/triage chain is back on solid documented footing
+2. Treat Phase 3F as deployment configuration and remote verification work, not a reason to reopen warm product scope

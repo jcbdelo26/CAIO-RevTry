@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from pipeline.dedup import (
     check_contact_window,
     check_dedup,
+    check_ghl_tag,
     check_hash_dedup,
     compute_draft_hash,
     record_dispatch,
@@ -77,3 +79,17 @@ class TestCombinedDedup:
         record_hash(h)
         is_dup, reason = await check_dedup("c1", "instantly", "Subj", "Body")
         assert is_dup is True
+
+
+class TestGhlTagDedup:
+    @pytest.mark.asyncio
+    async def test_detects_nested_contact_tags(self):
+        mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={
+            "contact": {"id": "c1", "tags": ["revtry-sent-ghl", "customer"]},
+        })
+
+        is_dup, reason = await check_ghl_tag("c1", "ghl", mock_ghl)
+
+        assert is_dup is True
+        assert "revtry-sent-ghl" in reason

@@ -6,11 +6,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from dashboard.storage import save_draft, approve_draft, update_draft_ghl_result
+from dashboard.storage import approve_draft, get_draft, save_draft, update_draft_ghl_result
 from models.schemas import (
     CampaignDraft,
     CampaignDraftTrace,
     Channel,
+    DraftApprovalStatus,
 )
 from pipeline.circuit_breaker import CircuitBreaker
 from pipeline.dispatcher import dispatch_approved_drafts
@@ -284,3 +285,27 @@ class TestDispatcher:
         # First dispatches, second caught by contact window dedup
         assert result.dispatched == 1
         assert result.skipped_dedup >= 1
+
+    @pytest.mark.asyncio
+    async def test_failed_send_marks_send_failed(self, tmp_path):
+        _create_approved_draft(draft_id="d-fail")
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock(side_effect=Exception("SMTP timeout"))
+        mock_ghl.close = AsyncMock()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        result = await dispatch_approved_drafts(
+            tier_restriction=1,
+            rate_limiter=rl,
+            circuit_breaker=cb,
+            ghl=mock_ghl,
+        )
+
+        stored = get_draft("d-fail")
+        assert result.failed == 1
+        assert stored is not None
+        assert stored.status == DraftApprovalStatus.SEND_FAILED
+        assert stored.dispatch_error == "SMTP timeout"
+        assert stored.send_failed_at is not None
