@@ -48,7 +48,7 @@
     <div style="display: flex; gap: 16px; flex-wrap: wrap;">
         {% for integration, state in cb_states.items() %}
         <div style="padding: 8px 16px; border-radius: 4px; background: {% if state == 'CLOSED' %}#d4edda{% elif state == 'OPEN' %}#f8d7da{% else %}#fff3cd{% endif %};">
-            <strong>{{ integration }}</strong>: {{ state }}
+            <strong>{{ integration }}</strong>: {% if state == 'CLOSED' %}Active{% elif state == 'OPEN' %}Blocked (circuit tripped){% else %}Testing recovery{% endif %}
         </div>
         {% endfor %}
     </div>

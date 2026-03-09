@@ -350,6 +350,8 @@ class ContactConversationSummary(BaseModel):
     last_inbound_date: Optional[str] = Field(None, alias="lastInboundDate")
     last_outbound_date: Optional[str] = Field(None, alias="lastOutboundDate")
     scanned_at: str = Field(..., alias="scannedAt")
+    dnd: bool = Field(False)
+    tags: list[str] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
 

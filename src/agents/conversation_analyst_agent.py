@@ -60,6 +60,7 @@ class AnalysisBatchResult:
     errors: list[str] = field(default_factory=list)
     skipped_no_conversation: int = 0
     skipped_no_email: int = 0
+    skipped_dnd: int = 0
 
 def _parse_timestamp(value: str | None) -> Optional[datetime]:
     if not value:
@@ -255,10 +256,11 @@ async def analyze_batch(
 ) -> AnalysisBatchResult:
     """Analyze a batch of summaries with per-contact failure isolation."""
     result = AnalysisBatchResult()
-    eligible, skipped_no_conversation, skipped_no_email = filter_eligible_summaries(summaries)
+    eligible, skipped_no_conversation, skipped_no_email, skipped_dnd = filter_eligible_summaries(summaries)
     result.skipped = len(summaries) - len(eligible)
     result.skipped_no_conversation = skipped_no_conversation
     result.skipped_no_email = skipped_no_email
+    result.skipped_dnd = skipped_dnd
 
     if not eligible:
         return result

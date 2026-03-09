@@ -214,6 +214,19 @@ Fail-fast rule:
 - Business-date logic must resolve in `America/Chicago`
 - Do not add remote deployment assumptions that depend on local file paths
 - Do not treat green tests as a substitute for runtime `Task 3B`
+- DnD/unsubscribed contacts must never reach `/followups` — filtered at scan time and at display time
+
+## 8a. Post-Implementation Verification Protocol
+
+After every major UI/UX or backend change, spawn parallel verification agents BEFORE committing:
+
+1. **Code Review Agent** — Review modified files for bugs, logic errors, security issues, and project convention adherence. Use `superpowers:code-reviewer` or `pr-review-toolkit:code-reviewer`.
+2. **Visual Validation Agent** — Use Playwright browser tools to screenshot affected dashboard pages and verify: correct rendering, no visual regressions, expected data display, proper badge/label states.
+3. **Code Simplifier Agent** — Review recently modified code for clarity, consistency, and maintainability using `pr-review-toolkit:code-simplifier`.
+
+**Triggers** — template changes (`src/dashboard/templates/`), route handler changes (`src/dashboard/app.py`), model changes affecting display, CSS changes in `base.html`, pipeline changes affecting dashboard data.
+
+All 3 agents run IN PARALLEL. Fix any issues they identify before committing.
 
 ---
 
@@ -229,8 +242,8 @@ python -m pytest tests -q
 ```
 
 Current baseline:
-- `318 passed`
-- `28` test files
+- `362 passed`
+- `29` test files
 
 ---
 
@@ -245,15 +258,15 @@ Vercel-specific files (not part of src/):
 
 ## 11. Current Next Steps
 
-**Hero Outcome 3 priority (Phase 3F completion):**
-1. Tasks 62A-62C: DB timeout, healthz probe, route error handling → push to Vercel
-2. Task 62D: Run warm pipeline locally against Neon Postgres (`batch_size=10`)
-3. Task 63: Verify dashboard shows real data, test approve/reject
-4. Task 64: Dani verifies remote access from phone
+**Phase 3F status:**
+- Tasks 62A-62D: DONE — DB hardening, healthz, error handling, pipeline populated
+- Task 63: IN_PROGRESS — route verification, approve/reject flow testing
+- Task 64: PENDING — Dani remote access verification from phone
+- DnD/unsubscribe filtering: DONE — contacts filtered at scan time + display time
 
 **Parallel priority (Phase 0 audit chain):**
-5. Task 15: Execute GHL audit
-6. Tasks 16-22: Complete audit → triage → notification chain
+- Task 15: Execute GHL audit
+- Tasks 16-22: Complete audit → triage → notification chain
 
 Rules:
 - Treat Phase 3F as deployment configuration and remote verification work, not a reason to reopen warm product scope

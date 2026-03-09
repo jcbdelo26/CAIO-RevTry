@@ -9,12 +9,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from integrations.ghl_client import GHLClient
+from models.schemas import ContactConversationSummary, ConversationMessage, ConversationThread
 from scripts.ghl_conversation_scanner import (
     _normalize_message_type,
     _parse_messages,
     compact_thread_messages,
     filter_eligible_summaries,
     has_valid_email,
+    is_dnd_or_unsubscribed,
     load_candidates,
     scan_all_contacts,
     scan_contact,
@@ -203,6 +205,7 @@ class TestScanContact:
     async def test_scan_contact_with_messages(self):
         ts = datetime.now(timezone.utc).isoformat()
         mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
         mock_ghl.search_conversations = AsyncMock(return_value={
             "conversations": [{"id": "conv-1"}],
         })
@@ -236,6 +239,7 @@ class TestScanContact:
     async def test_scan_contact_with_nested_message_wrapper(self):
         ts = datetime.now(timezone.utc).isoformat()
         mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
         mock_ghl.search_conversations = AsyncMock(return_value={
             "conversations": [{"id": "conv-1"}],
         })
@@ -267,6 +271,7 @@ class TestScanContact:
     @pytest.mark.asyncio
     async def test_scan_contact_no_conversations(self):
         mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
         mock_ghl.search_conversations = AsyncMock(return_value={"conversations": []})
 
         contact = {"ghl_contact_id": "c-empty"}
@@ -285,6 +290,7 @@ class TestScanContact:
     @pytest.mark.asyncio
     async def test_scan_contact_api_error_returns_none(self):
         mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
         mock_ghl.search_conversations = AsyncMock(side_effect=Exception("API error"))
 
         contact = {"ghl_contact_id": "c-err"}
@@ -299,6 +305,7 @@ class TestScanAllContacts:
 
         ts = datetime.now(timezone.utc).isoformat()
         mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
         mock_ghl.search_conversations = AsyncMock(return_value={
             "conversations": [{"id": "conv-1"}],
         })
@@ -514,6 +521,7 @@ class TestScanContactEligibility:
     async def test_zero_message_contact_returns_summary_not_none(self):
         """Scanner returns summary for zero-message contacts (eligibility filter is orchestrator concern)."""
         mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
         mock_ghl.search_conversations = AsyncMock(return_value={"conversations": []})
 
         contact = {"ghl_contact_id": "c-empty", "email": "empty@test.com"}
@@ -528,6 +536,7 @@ class TestScanContactEligibility:
         """Scanner does not filter by email — orchestrator handles that eligibility check."""
         ts = datetime.now(timezone.utc).isoformat()
         mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
         mock_ghl.search_conversations = AsyncMock(return_value={
             "conversations": [{"id": "conv-1"}],
         })
@@ -550,6 +559,7 @@ class TestScanContactEligibility:
         newer_ts = now.isoformat()
 
         mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
         mock_ghl.search_conversations = AsyncMock(return_value={
             "conversations": [{"id": "conv-1"}],
         })
@@ -582,6 +592,7 @@ class TestWarmEligibilityHelpers:
         newer_ts = now.isoformat()
 
         mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
         mock_ghl.search_conversations = AsyncMock(return_value={
             "conversations": [{"id": "conv-old"}, {"id": "conv-new"}],
         })
@@ -623,6 +634,7 @@ class TestWarmEligibilityHelpers:
     async def test_filter_eligible_summaries_tracks_skip_reasons(self):
         ts = datetime.now(timezone.utc).isoformat()
         mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
         mock_ghl.search_conversations = AsyncMock(side_effect=[
             {"conversations": []},
             {"conversations": [{"id": "conv-2"}]},
@@ -637,7 +649,7 @@ class TestWarmEligibilityHelpers:
         no_email = await scan_contact(mock_ghl, {"ghl_contact_id": "c-2", "email": ""}, scan_days=30)
         eligible = await scan_contact(mock_ghl, {"ghl_contact_id": "c-3", "email": "ok@test.com"}, scan_days=30)
 
-        filtered, skipped_no_conversation, skipped_no_email = filter_eligible_summaries(
+        filtered, skipped_no_conversation, skipped_no_email, skipped_dnd = filter_eligible_summaries(
             [no_conversation, no_email, eligible]  # type: ignore[list-item]
         )
 
@@ -645,3 +657,110 @@ class TestWarmEligibilityHelpers:
         assert filtered[0].contact_id == "c-3"
         assert skipped_no_conversation == 1
         assert skipped_no_email == 1
+        assert skipped_dnd == 0
+
+
+class TestDndFiltering:
+    """Tests for DnD/unsubscribe contact filtering."""
+
+    def _make_summary(self, contact_id: str = "c-1", dnd: bool = False, tags: list[str] | None = None):
+        ts = datetime.now(timezone.utc).isoformat()
+        return ContactConversationSummary(
+            contactId=contact_id,
+            ghlContactId=contact_id,
+            firstName="Test",
+            lastName="Contact",
+            email=f"{contact_id}@test.com",
+            companyName="TestCo",
+            title="",
+            threads=[ConversationThread(
+                conversationId="conv-1",
+                contactId=contact_id,
+                lastMessageDate=ts,
+                messageCount=1,
+                messages=[ConversationMessage(
+                    message_id="m-1",
+                    conversation_id="conv-1",
+                    direction="inbound",
+                    body="Hello",
+                    timestamp=ts,
+                    message_type="email",
+                )],
+            )],
+            totalMessages=1,
+            lastInboundDate=ts,
+            lastOutboundDate=None,
+            scannedAt=ts,
+            dnd=dnd,
+            tags=tags or [],
+        )
+
+    def test_is_dnd_or_unsubscribed_true_for_dnd_flag(self):
+        summary = self._make_summary(dnd=True)
+        assert is_dnd_or_unsubscribed(summary) is True
+
+    def test_is_dnd_or_unsubscribed_true_for_unsubscribe_tag(self):
+        summary = self._make_summary(tags=["Unsubscribed"])
+        assert is_dnd_or_unsubscribed(summary) is True
+
+    def test_is_dnd_or_unsubscribed_true_for_do_not_contact_tag(self):
+        summary = self._make_summary(tags=["VIP", "Do Not Contact"])
+        assert is_dnd_or_unsubscribed(summary) is True
+
+    def test_is_dnd_or_unsubscribed_false_for_clean_contact(self):
+        summary = self._make_summary(dnd=False, tags=["Customer", "VIP"])
+        assert is_dnd_or_unsubscribed(summary) is False
+
+    def test_filter_eligible_summaries_skips_dnd_contacts(self):
+        clean = self._make_summary(contact_id="clean-1")
+        dnd_contact = self._make_summary(contact_id="dnd-1", dnd=True)
+        unsub_contact = self._make_summary(contact_id="unsub-1", tags=["opted-out"])
+
+        filtered, skip_conv, skip_email, skip_dnd = filter_eligible_summaries(
+            [clean, dnd_contact, unsub_contact]
+        )
+
+        assert len(filtered) == 1
+        assert filtered[0].contact_id == "clean-1"
+        assert skip_dnd == 2
+        assert skip_conv == 0
+        assert skip_email == 0
+
+    @pytest.mark.asyncio
+    async def test_scan_contact_populates_dnd_and_tags(self):
+        ts = datetime.now(timezone.utc).isoformat()
+        mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={
+            "contact": {"dnd": True, "tags": ["VIP", "Unsubscribed"]}
+        })
+        mock_ghl.search_conversations = AsyncMock(return_value={
+            "conversations": [{"id": "conv-1"}]
+        })
+        mock_ghl.get_messages = AsyncMock(return_value={
+            "messages": [{"id": "m-1", "dateAdded": ts, "direction": "inbound", "body": "Hi"}]
+        })
+
+        summary = await scan_contact(mock_ghl, {"ghl_contact_id": "c-dnd", "email": "dnd@test.com"}, scan_days=30)
+
+        assert summary is not None
+        assert summary.dnd is True
+        assert "VIP" in summary.tags
+        assert "Unsubscribed" in summary.tags
+
+    @pytest.mark.asyncio
+    async def test_scan_contact_defaults_dnd_false_on_get_contact_failure(self):
+        ts = datetime.now(timezone.utc).isoformat()
+        mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(side_effect=RuntimeError("API error"))
+        mock_ghl.search_conversations = AsyncMock(return_value={
+            "conversations": [{"id": "conv-1"}]
+        })
+        mock_ghl.get_messages = AsyncMock(return_value={
+            "messages": [{"id": "m-1", "dateAdded": ts, "direction": "inbound", "body": "Hi"}]
+        })
+
+        summary = await scan_contact(mock_ghl, {"ghl_contact_id": "c-fail", "email": "fail@test.com"}, scan_days=30)
+
+        assert summary is not None
+        assert summary.dnd is False
+        assert summary.tags == []

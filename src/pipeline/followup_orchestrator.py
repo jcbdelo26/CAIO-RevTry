@@ -252,7 +252,7 @@ async def run_followup_orchestrator(
                 "briefing_path": None,
                 "errors": [str(exc)],
             }
-        eligible_summaries, skipped_no_conversation, skipped_no_email = filter_eligible_summaries(summaries)
+        eligible_summaries, skipped_no_conversation, skipped_no_email, skipped_dnd = filter_eligible_summaries(summaries)
         trace.log_event(
             "conversation_scan_complete",
             {
@@ -261,6 +261,7 @@ async def run_followup_orchestrator(
                 "eligible": len(eligible_summaries),
                 "skippedNoConversation": skipped_no_conversation,
                 "skippedNoEmail": skipped_no_email,
+                "skippedDnd": skipped_dnd,
             },
         )
         trace.log_tool_call("ghl_conversation_scan")

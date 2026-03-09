@@ -246,20 +246,39 @@ def compact_thread_messages(
     return compacted
 
 
+_DND_UNSUBSCRIBE_TAGS = frozenset({"unsubscribed", "do not contact", "dnd", "opted-out", "opt-out"})
+
+
+def is_dnd_or_unsubscribed(summary: ContactConversationSummary) -> bool:
+    """Return True if the contact has DnD enabled or carries an unsubscribe tag."""
+    if summary.dnd:
+        return True
+    return bool({tag.lower().strip() for tag in summary.tags} & _DND_UNSUBSCRIBE_TAGS)
+
+
 def is_summary_eligible(summary: ContactConversationSummary) -> bool:
-    """Warm analysis only runs on contacts with a real conversation and valid email."""
-    return summary.total_messages > 0 and has_valid_email(summary.email) and select_primary_thread(summary) is not None
+    """Warm analysis only runs on contacts with a real conversation, valid email, and no DnD."""
+    return (
+        not is_dnd_or_unsubscribed(summary)
+        and summary.total_messages > 0
+        and has_valid_email(summary.email)
+        and select_primary_thread(summary) is not None
+    )
 
 
 def filter_eligible_summaries(
     summaries: list[ContactConversationSummary],
-) -> tuple[list[ContactConversationSummary], int, int]:
+) -> tuple[list[ContactConversationSummary], int, int, int]:
     """Split conversation summaries into eligible warm-analysis inputs and tracked skips."""
     eligible: list[ContactConversationSummary] = []
     skipped_no_conversation = 0
     skipped_no_email = 0
+    skipped_dnd = 0
 
     for summary in summaries:
+        if is_dnd_or_unsubscribed(summary):
+            skipped_dnd += 1
+            continue
         if summary.total_messages <= 0 or select_primary_thread(summary) is None:
             skipped_no_conversation += 1
             continue
@@ -268,7 +287,7 @@ def filter_eligible_summaries(
             continue
         eligible.append(summary)
 
-    return eligible, skipped_no_conversation, skipped_no_email
+    return eligible, skipped_no_conversation, skipped_no_email, skipped_dnd
 
 
 async def scan_contact(
@@ -283,6 +302,14 @@ async def scan_contact(
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=scan_days)
     now_iso = datetime.now(timezone.utc).isoformat()
+
+    # Fetch full contact record for DnD and tag status
+    contact_record: dict[str, Any] = {}
+    try:
+        contact_result = await ghl.get_contact(contact_id)
+        contact_record = contact_result.get("contact", contact_result)
+    except Exception:
+        logger.warning("Failed to fetch contact record for %s, defaulting dnd=False", contact_id)
 
     try:
         # Fetch conversation threads for this contact
@@ -352,6 +379,8 @@ async def scan_contact(
         lastInboundDate=last_inbound,
         lastOutboundDate=last_outbound,
         scannedAt=now_iso,
+        dnd=bool(contact_record.get("dnd", False)),
+        tags=contact_record.get("tags", []) or [],
     )
 
 
@@ -385,14 +414,15 @@ async def scan_all_contacts(
         if own_ghl:
             await ghl.close()
 
-    eligible, skipped_no_conversation, skipped_no_email = filter_eligible_summaries(summaries)
+    eligible, skipped_no_conversation, skipped_no_email, skipped_dnd = filter_eligible_summaries(summaries)
     logger.info(
-        "Scanned %d contacts, %d summaries, %d eligible, %d skipped no conversation, %d skipped no email",
+        "Scanned %d contacts, %d summaries, %d eligible, %d skipped no conversation, %d skipped no email, %d skipped dnd",
         len(candidates),
         len(summaries),
         len(eligible),
         skipped_no_conversation,
         skipped_no_email,
+        skipped_dnd,
     )
     return summaries
 

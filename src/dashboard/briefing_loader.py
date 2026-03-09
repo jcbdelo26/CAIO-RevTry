@@ -13,8 +13,9 @@ from models.schemas import (
     FollowUpDraft,
 )
 from persistence.factory import get_storage_backend
-from scripts.ghl_conversation_scanner import filter_eligible_summaries, select_primary_thread
+from scripts.ghl_conversation_scanner import filter_eligible_summaries, is_dnd_or_unsubscribed, select_primary_thread
 from utils.business_time import current_business_date
+
 
 def _urgency_counts(analyses: list[ConversationAnalysis]) -> dict[str, int]:
     counts = {"hot": 0, "warm": 0, "cooling": 0}
@@ -64,7 +65,7 @@ def load_daily_briefing(date: Optional[str] = None) -> DailyBriefing:
     analyses = storage.list_conversation_analyses()
     drafts = storage.list_followup_drafts(business_date=briefing_date, latest_only=not bool(date))
 
-    _, skipped_no_conversation, skipped_no_email = filter_eligible_summaries(summaries)
+    _, skipped_no_conversation, skipped_no_email, _ = filter_eligible_summaries(summaries)
     urgency_counts = _urgency_counts(analyses)
     trigger_counts = _trigger_counts(analyses)
 
@@ -177,6 +178,13 @@ def load_followup_queue(date: Optional[str] = None) -> list[dict[str, Any]]:
                 "businessDate": draft.business_date if draft else queue_date,
             }
         )
+
+    # Defense-in-depth: remove DnD/unsubscribed contacts from queue display
+    def _is_contactable(item: dict[str, Any]) -> bool:
+        summary = item["summary"]
+        return summary is None or not is_dnd_or_unsubscribed(summary)
+
+    queue = [item for item in queue if _is_contactable(item)]
 
     queue.sort(
         key=lambda item: (
