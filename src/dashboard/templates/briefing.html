@@ -104,9 +104,9 @@
                 <td>{{ item.stage.value if item.stage else "—" }}</td>
                 <td>
                     {% if item.draftId %}
-                    <a href="/followups/{{ item.draftId }}" class="btn" style="background:#007bff;color:white;">View Draft</a>
+                    <a href="/followups/contact/{{ item.contactId }}?date={{ item.businessDate }}" class="btn" style="background:#007bff;color:white;">View Draft</a>
                     {% else %}
-                    <span style="color:#666;">Pending draft</span>
+                    <a href="/followups/contact/{{ item.contactId }}?date={{ item.businessDate }}" class="btn" style="background:#6c757d;color:white;">View Analysis</a>
                     {% endif %}
                 </td>
             </tr>

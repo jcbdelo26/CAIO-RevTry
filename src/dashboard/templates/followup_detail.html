@@ -1,57 +1,139 @@
 {% extends "base.html" %}
 
-{% block title %}Warm Follow-Up {{ draft.draft_id[:8] }} — RevTry Dashboard{% endblock %}
+{% block title %}
+{% if draft %}
+Warm Follow-Up — {{ draft.contact_name or draft.contact_id }} — RevTry Dashboard
+{% else %}
+Lead Analysis — {{ (queue_item.contactName if queue_item else None) or (summary.first_name ~ ' ' ~ summary.last_name if summary else None) or 'Routed Lead' }} — RevTry Dashboard
+{% endif %}
+{% endblock %}
 
 {% block content %}
+{% set contact_name = (draft.contact_name if draft else None) or (queue_item.contactName if queue_item else None) or (((summary.first_name ~ ' ' ~ summary.last_name).strip()) if summary else '') or (draft.contact_id if draft else None) or (queue_item.contactId if queue_item else 'Unknown Lead') %}
+{% set contact_subtitle = (draft.company_name if draft else None) or (queue_item.companyName if queue_item else None) or (draft.contact_email if draft else None) or (queue_item.contactEmail if queue_item else None) or (summary.company_name if summary else None) or (summary.email if summary else None) or 'No company or email available' %}
+{% set status_value = draft.status.value if draft else None %}
+
 <div style="margin-bottom: 16px;">
-    <a href="/followups" style="color: #007bff; text-decoration: none;">&larr; Back to Follow-Ups</a>
+    <a href="/followups{% if selected_date %}?date={{ selected_date }}{% endif %}" style="color: #007bff; text-decoration: none;">&larr; Back to Follow-Ups</a>
 </div>
 
 <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;">
         <div>
-            <h2 style="margin-bottom:4px;">{{ draft.contact_name or draft.contact_id }}</h2>
-            <p style="color:#666;">{{ draft.company_name or draft.contact_email }}</p>
+            <h2 style="margin-bottom:4px;">{{ contact_name }}</h2>
+            <p style="color:#666;">{{ contact_subtitle }}</p>
         </div>
-        {% set status_value = draft.status.value %}
+        {% if draft %}
         <span class="badge {% if status_value == 'PENDING' %}badge-pending{% elif status_value == 'APPROVED' %}badge-approved{% elif status_value == 'SEND_FAILED' %}badge-send-failed{% elif status_value == 'DISPATCHED' %}badge-approved{% else %}badge-rejected{% endif %}">
             {{ status_value }}
         </span>
+        {% else %}
+        <span class="badge" style="background:#e9ecef;color:#495057;">ANALYSIS ONLY</span>
+        {% endif %}
     </div>
 
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:20px;">
         <div>
-            <strong>Trigger</strong><br>{{ draft.trigger.value }}
+            <strong>Trigger</strong><br>{{ (queue_item.trigger.value if queue_item and queue_item.trigger else (draft.trigger.value if draft else "—")) }}
         </div>
         <div>
-            <strong>Urgency</strong><br>{{ draft.urgency.value }}
+            <strong>Urgency</strong><br>{{ (queue_item.urgency.value if queue_item and queue_item.urgency else (draft.urgency.value if draft else "—")) }}
         </div>
         <div>
-            <strong>Stage</strong><br>{{ draft.stage.value }}
+            <strong>Stage</strong><br>{{ (queue_item.stage.value if queue_item and queue_item.stage else (draft.stage.value if draft else "—")) }}
         </div>
         <div>
-            <strong>Sentiment</strong><br>{{ draft.sentiment.value }}
+            <strong>Sentiment</strong><br>{{ (queue_item.sentiment.value if queue_item and queue_item.sentiment else (draft.sentiment.value if draft else "—")) }}
+        </div>
+        <div>
+            <strong>Last Activity</strong><br>
+            {% if queue_item and queue_item.daysSinceLastActivity is not none %}
+            {{ queue_item.daysSinceLastActivity }} day(s)
+            {% else %}
+            —
+            {% endif %}
         </div>
     </div>
 
-    {% if analysis %}
     <div style="margin-bottom:20px;">
         <h3 style="margin-bottom:8px;">Analysis Summary</h3>
+        {% if analysis %}
         <p style="margin-bottom:8px;">{{ analysis.conversation_summary }}</p>
         <p style="color:#666;"><strong>Recommended action:</strong> {{ analysis.recommended_action }}</p>
+        {% elif queue_item and queue_item.analysisSummary %}
+        <p style="margin-bottom:8px;">{{ queue_item.analysisSummary }}</p>
+        <p style="color:#666;"><strong>Recommended action:</strong> {{ queue_item.recommendedAction or "—" }}</p>
+        {% else %}
+        <p style="color:#666;">No analysis summary is currently available.</p>
+        {% endif %}
+    </div>
+
+    {% if draft %}
+    <div style="margin-bottom:20px;">
+        <h3 style="margin-bottom:8px;">Draft Preview</h3>
+        {% if edit_errors %}
+        <div style="margin-bottom:12px; padding:12px; border-left:4px solid #dc3545; background:#fff5f5;">
+            <strong>Save failed</strong>
+            <ul style="margin:8px 0 0 18px;">
+                {% for error in edit_errors %}
+                <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% if edit_disabled_message %}
+        <div style="margin-bottom:12px; padding:12px; border-left:4px solid #6c757d; background:#f8f9fa;">
+            {{ edit_disabled_message }}
+        </div>
+        {% endif %}
+
+        {% if draft.status.value == 'DISPATCHED' %}
+        <h4 style="margin-bottom:8px;">Subject</h4>
+        <p style="margin-bottom:16px; font-weight:600;">{{ draft.subject }}</p>
+        <h4 style="margin-bottom:8px;">Body</h4>
+        <div class="email-preview" style="margin-bottom:20px;">{{ draft.body }}</div>
+        {% else %}
+        <form method="POST" action="/followups/{{ draft.draft_id }}/edit" style="display:grid; gap:12px; margin-bottom:20px;">
+            <div>
+                <label for="subject" style="display:block; font-weight:600; margin-bottom:6px;">Subject</label>
+                <input id="subject" type="text" name="subject" value="{{ edit_subject if edit_subject is defined else draft.subject }}" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px;">
+            </div>
+            <div>
+                <label for="body" style="display:block; font-weight:600; margin-bottom:6px;">Body</label>
+                <textarea id="body" name="body" rows="12" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-family:inherit;">{{ edit_body if edit_body is defined else draft.body }}</textarea>
+            </div>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                <button type="submit" class="btn" style="background:#007bff;color:white;">Save Draft</button>
+                {% if draft.edited_at %}
+                <span style="color:#666; font-size:0.9em;">Last edited: {{ draft.edited_at }}</span>
+                {% endif %}
+            </div>
+        </form>
+        {% endif %}
+    </div>
+
+    {% if draft.status.value == 'PENDING' %}
+    <div style="margin-top:24px; display:flex; gap:12px; flex-wrap:wrap;">
+        <form method="POST" action="/followups/{{ draft.draft_id }}/approve">
+            <button type="submit" class="btn btn-approve">Approve</button>
+        </form>
+        <form method="POST" action="/followups/{{ draft.draft_id }}/reject" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="text" name="reason" placeholder="Rejection reason..." style="padding:8px; border:1px solid #ddd; border-radius:4px; width:300px;">
+            <button type="submit" class="btn btn-reject">Reject</button>
+        </form>
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="margin-bottom:20px;">
+        <h3 style="margin-bottom:8px;">Draft Preview</h3>
+        <p style="color:#666;">No follow-up draft has been generated for this routed lead yet.</p>
     </div>
     {% endif %}
 
-    <h3 style="margin-bottom:8px;">Subject</h3>
-    <p style="margin-bottom:16px; font-weight:600;">{{ draft.subject }}</p>
-
-    <h3 style="margin-bottom:8px;">Follow-Up Draft</h3>
-    <div class="email-preview" style="margin-bottom:20px;">{{ draft.body }}</div>
-
     <h3 style="margin-bottom:8px;">Conversation Context</h3>
-    {% if primary_thread and primary_thread.messages %}
+    {% if display_thread and display_thread.messages %}
     <div style="display:grid; gap:10px; max-height:420px; overflow:auto;">
-        {% for message in primary_thread.messages %}
+        {% for message in display_thread.messages %}
         <div style="padding:12px; border-radius:8px; background:{% if message.direction == 'inbound' %}#eef6ff{% else %}#f8f9fa{% endif %}; border:1px solid #e5e7eb;">
             <div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px; flex-wrap:wrap;">
                 <strong>{{ message.direction|upper }}</strong>
@@ -65,21 +147,9 @@
         {% endfor %}
     </div>
     {% elif conversation %}
-    <p style="color:#666;">Conversation file is present but no primary thread messages were loaded.</p>
+    <p style="color:#666;">Conversation file is present but no matching thread messages were loaded.</p>
     {% else %}
-    <p style="color:#666;">No conversation context is available for this draft.</p>
-    {% endif %}
-
-    {% if draft.status.value == 'PENDING' %}
-    <div style="margin-top:24px; display:flex; gap:12px; flex-wrap:wrap;">
-        <form method="POST" action="/followups/{{ draft.draft_id }}/approve">
-            <button type="submit" class="btn btn-approve">Approve</button>
-        </form>
-        <form method="POST" action="/followups/{{ draft.draft_id }}/reject" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <input type="text" name="reason" placeholder="Rejection reason..." style="padding:8px; border:1px solid #ddd; border-radius:4px; width:300px;">
-            <button type="submit" class="btn btn-reject">Reject</button>
-        </form>
-    </div>
+    <p style="color:#666;">No conversation context is available for this routed lead.</p>
     {% endif %}
 </div>
 {% endblock %}

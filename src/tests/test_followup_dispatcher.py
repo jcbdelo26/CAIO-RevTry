@@ -103,6 +103,33 @@ class TestFollowupDispatcher:
         assert kwargs["to_email"] == "alex@acme.com"
 
     @pytest.mark.asyncio
+    async def test_dispatch_uses_latest_saved_subject_and_body(self, tmp_path):
+        draft = _seed_approved_followup()
+        latest = get_followup_draft(draft.draft_id)
+        assert latest is not None
+        latest.subject = "Edited subject for dispatch"
+        latest.body = "Edited body for dispatch"
+        save_followup_draft(latest)
+
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock(return_value={"messageId": "msg-1"})
+        mock_ghl.close = AsyncMock()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        result = await dispatch_approved_followups(
+            rate_limiter=rl,
+            circuit_breaker=cb,
+            ghl=mock_ghl,
+        )
+
+        assert result.dispatched == 1
+        kwargs = mock_ghl.send_email.call_args.kwargs
+        assert kwargs["subject"] == "Edited subject for dispatch"
+        assert kwargs["body"] == "Edited body for dispatch"
+
+    @pytest.mark.asyncio
     async def test_no_approved_followups_returns_empty_result(self, tmp_path):
         save_followup_draft(_build_followup(status=DraftApprovalStatus.PENDING))
 

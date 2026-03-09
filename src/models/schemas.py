@@ -398,6 +398,7 @@ class FollowUpDraft(BaseModel):
     dispatched_at: Optional[str] = Field(None, alias="dispatchedAt")
     send_failed_at: Optional[str] = Field(None, alias="sendFailedAt")
     dispatch_error: Optional[str] = Field(None, alias="dispatchError")
+    edited_at: Optional[str] = Field(None, alias="editedAt")
 
     model_config = {"populate_by_name": True}
 

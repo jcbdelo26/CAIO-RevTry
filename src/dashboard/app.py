@@ -16,6 +16,7 @@ Endpoints:
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 import logging
 import os
 from pathlib import Path
@@ -43,6 +44,7 @@ from dashboard.followup_storage import (
     approve_followup_draft,
     get_followup_draft,
     list_followup_drafts,
+    save_followup_draft,
     reject_followup_draft,
 )
 from dashboard.storage import (
@@ -57,6 +59,9 @@ from integrations.ghl_service import push_approved_draft_to_ghl
 
 from models.schemas import DraftApprovalStatus
 from persistence.factory import get_storage_backend, get_storage_backend_name, validate_storage_configuration
+from scripts.ghl_conversation_scanner import select_primary_thread
+from validators.followup_gate2_validator import validate_followup_gate2
+from validators.followup_gate3_validator import validate_followup_gate3
 logger = logging.getLogger(__name__)
 
 
@@ -104,11 +109,64 @@ def _raise_if_cold_routes_disabled() -> None:
         raise HTTPException(status_code=404, detail="Cold outbound routes are disabled in warm-only mode")
 
 
-def _get_followup_queue_item(draft_id: str) -> Optional[dict]:
-    for item in load_followup_queue(date=None):
+def _get_followup_queue_item_by_contact(contact_id: str, date: Optional[str] = None) -> Optional[dict]:
+    for item in load_followup_queue(date=date):
+        if item.get("contactId") == contact_id:
+            return item
+    return None
+
+
+def _get_followup_queue_item_by_draft(draft_id: str, date: Optional[str] = None) -> Optional[dict]:
+    for item in load_followup_queue(date=date):
         if item.get("draftId") == draft_id:
             return item
     return None
+
+
+def _get_latest_followup_draft_for_contact(contact_id: str, date: Optional[str] = None):
+    drafts = list_followup_drafts(business_date=date, latest_only=False)
+    for draft in drafts:
+        if draft.contact_id == contact_id:
+            return draft
+    return None
+
+
+def _select_display_thread(summary, source_conversation_id: Optional[str]):
+    if summary and source_conversation_id:
+        for candidate in summary.threads:
+            if candidate.conversation_id == source_conversation_id:
+                return candidate
+    if summary:
+        return select_primary_thread(summary)
+    return None
+
+
+def _build_followup_detail_context(
+    *,
+    contact_id: str,
+    date: Optional[str] = None,
+    draft=None,
+) -> dict:
+    queue_item = _get_followup_queue_item_by_contact(contact_id, date=date)
+    conversation = load_contact_conversation(contact_id)
+    draft = draft or (queue_item["draft"] if queue_item else None) or _get_latest_followup_draft_for_contact(contact_id, date=date)
+    analysis = queue_item["analysis"] if queue_item else None
+    summary = queue_item["summary"] if queue_item else conversation
+    source_conversation_id = None
+    if draft:
+        source_conversation_id = draft.source_conversation_id
+    elif analysis:
+        source_conversation_id = analysis.source_conversation_id
+    display_thread = _select_display_thread(summary, source_conversation_id)
+    return {
+        "queue_item": queue_item,
+        "draft": draft,
+        "analysis": analysis,
+        "summary": summary,
+        "conversation": conversation,
+        "display_thread": display_thread,
+        "selected_date": date or (queue_item["businessDate"] if queue_item else (draft.business_date if draft else None)),
+    }
 
 
 def _build_dispatch_status_payload(*, circuit_breaker: CircuitBreaker, rate_limiter: DailyRateLimiter) -> dict:
@@ -275,6 +333,35 @@ async def followup_list_view(
     )
 
 
+@app.get("/followups/contact/{contact_id}", response_class=HTMLResponse)
+async def followup_contact_detail_view(
+    request: Request,
+    contact_id: str,
+    date: Optional[str] = None,
+    _: None = Depends(require_dashboard_auth),
+) -> HTMLResponse:
+    try:
+        context = _build_followup_detail_context(contact_id=contact_id, date=date)
+    except Exception:
+        logger.exception("Failed to load routed follow-up detail")
+        return _render_error_state(
+            request,
+            title="Follow-Up Unavailable",
+            message="The routed lead could not be loaded right now.",
+            back_href="/followups",
+            back_label="Back to Follow-Ups",
+        )
+
+    if not context["queue_item"] and not context["summary"] and not context["draft"]:
+        raise HTTPException(status_code=404, detail="Follow-up lead not found")
+
+    return templates.TemplateResponse(
+        request,
+        "followup_detail.html",
+        context,
+    )
+
+
 @app.post("/followups/batch/approve")
 async def batch_approve_followups(
     draft_ids: str = Form(""),
@@ -332,6 +419,7 @@ async def generate_followups(
 async def followup_detail_view(
     request: Request,
     draft_id: str,
+    date: Optional[str] = None,
     _: None = Depends(require_dashboard_auth),
 ) -> HTMLResponse:
     try:
@@ -347,29 +435,10 @@ async def followup_detail_view(
         )
     if not draft:
         raise HTTPException(status_code=404, detail="Follow-up draft not found")
-
-    try:
-        queue_item = _get_followup_queue_item(draft_id)
-        conversation = load_contact_conversation(draft.contact_id)
-    except Exception:
-        logger.exception("Failed to load follow-up detail")
-        return _render_error_state(
-            request,
-            title="Follow-Up Unavailable",
-            message="The follow-up draft could not be loaded right now.",
-            back_href="/followups",
-            back_label="Back to Follow-Ups",
-        )
-    return templates.TemplateResponse(
-        request,
-        "followup_detail.html",
-        {
-            "draft": draft,
-            "analysis": queue_item["analysis"] if queue_item else None,
-            "summary": queue_item["summary"] if queue_item else conversation,
-            "primary_thread": queue_item["primaryThread"] if queue_item else None,
-            "conversation": conversation,
-        },
+    target_date = date or draft.business_date
+    return RedirectResponse(
+        url=f"/followups/contact/{draft.contact_id}?date={target_date}",
+        status_code=307,
     )
 
 
@@ -381,7 +450,7 @@ async def approve_followup_endpoint(
     draft = approve_followup_draft(draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail="Follow-up draft not found")
-    return RedirectResponse(url=f"/followups/{draft_id}", status_code=303)
+    return RedirectResponse(url=f"/followups/contact/{draft.contact_id}?date={draft.business_date}", status_code=303)
 
 
 @app.post("/followups/{draft_id}/reject")
@@ -393,7 +462,93 @@ async def reject_followup_endpoint(
     draft = reject_followup_draft(draft_id, reason=reason)
     if not draft:
         raise HTTPException(status_code=404, detail="Follow-up draft not found")
-    return RedirectResponse(url=f"/followups/{draft_id}", status_code=303)
+    return RedirectResponse(url=f"/followups/contact/{draft.contact_id}?date={draft.business_date}", status_code=303)
+
+
+@app.post("/followups/{draft_id}/edit")
+async def edit_followup_endpoint(
+    request: Request,
+    draft_id: str,
+    subject: str = Form(""),
+    body: str = Form(""),
+    _: None = Depends(require_dashboard_auth),
+) -> HTMLResponse:
+    try:
+        draft = get_followup_draft(draft_id)
+    except Exception:
+        logger.exception("Failed to load follow-up draft for edit")
+        return _render_error_state(
+            request,
+            title="Follow-Up Unavailable",
+            message="The follow-up draft could not be loaded right now.",
+            back_href="/followups",
+            back_label="Back to Follow-Ups",
+        )
+
+    if not draft:
+        raise HTTPException(status_code=404, detail="Follow-up draft not found")
+
+    if draft.status == DraftApprovalStatus.DISPATCHED:
+        context = _build_followup_detail_context(contact_id=draft.contact_id, date=draft.business_date, draft=draft)
+        context["edit_errors"] = ["This draft has already been dispatched and can no longer be edited."]
+        context["edit_subject"] = draft.subject
+        context["edit_body"] = draft.body
+        context["edit_disabled_message"] = "This draft has already been dispatched and can no longer be edited."
+        return templates.TemplateResponse(request, "followup_detail.html", context, status_code=409)
+
+    try:
+        context = _build_followup_detail_context(contact_id=draft.contact_id, date=draft.business_date, draft=draft)
+    except Exception:
+        logger.exception("Failed to load follow-up detail for edit")
+        return _render_error_state(
+            request,
+            title="Follow-Up Unavailable",
+            message="The routed lead could not be loaded right now.",
+            back_href="/followups",
+            back_label="Back to Follow-Ups",
+        )
+
+    updated = draft.model_copy(deep=True)
+    updated.subject = subject.strip()
+    updated.body = body.strip()
+
+    failures: list[str] = []
+    if not updated.subject:
+        failures.append("Subject is required.")
+    if not updated.body:
+        failures.append("Body is required.")
+
+    gate2 = validate_followup_gate2([updated])
+    if not gate2.passed:
+        failures.extend(gate2.failures)
+
+    analyses = {}
+    summaries = {}
+    if context["analysis"] is not None:
+        analyses[updated.contact_id] = context["analysis"]
+    if context["summary"] is not None:
+        summaries[updated.contact_id] = context["summary"]
+    gate3 = validate_followup_gate3([updated], analyses, summaries or None)
+    if not gate3.passed:
+        failures.extend(gate3.failures)
+
+    if failures:
+        context["edit_errors"] = failures
+        context["edit_subject"] = subject
+        context["edit_body"] = body
+        return templates.TemplateResponse(request, "followup_detail.html", context, status_code=422)
+
+    if updated.status in {DraftApprovalStatus.APPROVED, DraftApprovalStatus.REJECTED, DraftApprovalStatus.SEND_FAILED}:
+        updated.status = DraftApprovalStatus.PENDING
+        updated.approved_at = None
+        updated.rejected_at = None
+        updated.rejection_reason = None
+        updated.send_failed_at = None
+        updated.dispatch_error = None
+
+    updated.edited_at = datetime.now(timezone.utc).isoformat()
+    save_followup_draft(updated)
+    return RedirectResponse(url=f"/followups/contact/{updated.contact_id}?date={updated.business_date}", status_code=303)
 
 
 # Batch routes MUST be defined before {draft_id} routes to avoid path conflicts

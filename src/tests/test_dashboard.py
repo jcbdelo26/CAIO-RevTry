@@ -91,6 +91,18 @@ def _write_indexed_model(tmp_path, subdir: str, file_id: str, data: dict) -> Non
     index_path.write_text(json.dumps(index, indent=2), encoding="utf-8")
 
 
+def _valid_followup_edit_body(prefix: str = "Updated subject") -> str:
+    return (
+        "Alex,\n\n"
+        "You asked for timing options, so I pulled together a clearer next step.\n\n"
+        f"{prefix} with a quick pilot outline and a few timing windows could help us keep momentum.\n\n"
+        "Dani Apgar\n"
+        "Head of Sales, Chief AI Officer\n"
+        "Reply STOP to unsubscribe.\n"
+        "Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109"
+    )
+
+
 def _basic_auth_headers(username: str = "dani", password: str = "secret") -> dict[str, str]:
     token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("utf-8")
     return {"Authorization": f"Basic {token}"}
@@ -190,6 +202,69 @@ def seeded_followups(tmp_path):
         createdAt="2026-03-08T11:05:00+00:00",
     )
     save_followup_draft(draft)
+
+    summary_two = ContactConversationSummary(
+        contactId="contact-followup-2",
+        ghlContactId="ghl-contact-followup-2",
+        firstName="Jordan",
+        lastName="Lee",
+        email="jordan@beta.com",
+        companyName="Beta Corp",
+        title="Founder",
+        threads=[
+            ConversationThread.model_validate(
+                {
+                    "conversationId": "conv-2",
+                    "contactId": "contact-followup-2",
+                    "lastMessageDate": "2026-03-08T12:00:00+00:00",
+                    "messageCount": 1,
+                    "messages": [
+                        {
+                            "messageId": "m-3",
+                            "conversationId": "conv-2",
+                            "direction": "outbound",
+                            "body": "Following up on the note I sent.",
+                            "subject": "Checking in",
+                            "timestamp": "2026-03-08T12:00:00+00:00",
+                            "messageType": "Email",
+                        }
+                    ],
+                }
+            )
+        ],
+        totalMessages=1,
+        lastInboundDate=None,
+        lastOutboundDate="2026-03-08T12:00:00+00:00",
+        scannedAt="2026-03-08T12:05:00+00:00",
+    )
+    _write_indexed_model(
+        tmp_path,
+        "conversations",
+        summary_two.contact_id,
+        summary_two.model_dump(by_alias=True),
+    )
+
+    analysis_two = ConversationAnalysis(
+        contactId=summary_two.contact_id,
+        sourceConversationId="conv-2",
+        sentiment=ConversationSentiment.NEUTRAL,
+        stage=ConversationStage.NEW,
+        trigger=FollowUpTrigger.NO_REPLY,
+        triggerReason="Latest message is outbound with no reply yet.",
+        urgency=UrgencyLevel.WARM,
+        keyTopics=["follow-up"],
+        recommendedAction="Wait 2-3 days, then send a short personalized follow-up.",
+        conversationSummary="The lead has not replied yet.",
+        daysSinceLastActivity=0,
+        analyzedAt="2026-03-08T12:30:00+00:00",
+    )
+    _write_indexed_model(
+        tmp_path,
+        "conversation_analysis",
+        analysis_two.contact_id,
+        analysis_two.model_dump(by_alias=True),
+    )
+
     return draft.draft_id
 
 
@@ -269,12 +344,36 @@ class TestWarmDashboardRoutes:
         assert resp.status_code == 200
         assert "Warm Follow-Up Queue" in resp.text
         assert "Alex Morgan" in resp.text
+        assert "Jordan Lee" in resp.text
+        assert "View Draft" in resp.text
+        assert "View Analysis" in resp.text
 
     def test_followup_detail_route(self, client, seeded_followups):
-        resp = client.get(f"/followups/{seeded_followups}")
+        resp = client.get(f"/followups/{seeded_followups}", follow_redirects=False)
+        assert resp.status_code == 307
+        assert resp.headers["location"] == "/followups/contact/contact-followup-1?date=2026-03-08"
+
+    def test_followup_contact_detail_route_with_draft(self, client, seeded_followups):
+        resp = client.get("/followups/contact/contact-followup-1")
         assert resp.status_code == 200
+        assert "Warm Follow-Up" in resp.text
         assert "Timing options for next week" in resp.text
         assert "Can you send timing options?" in resp.text
+        assert "Save Draft" in resp.text
+        assert "Approve" in resp.text
+
+    def test_followup_contact_detail_route_without_draft(self, client, seeded_followups):
+        resp = client.get("/followups/contact/contact-followup-2")
+        assert resp.status_code == 200
+        assert "Lead Analysis" in resp.text
+        assert "No follow-up draft has been generated for this routed lead yet." in resp.text
+        assert "The lead has not replied yet." in resp.text
+        assert "Wait 2-3 days, then send a short personalized follow-up." in resp.text
+        assert "Approve Draft" not in resp.text
+
+    def test_followup_contact_detail_404_when_missing(self, client, seeded_followups):
+        resp = client.get("/followups/contact/missing-contact")
+        assert resp.status_code == 404
 
     def test_followup_approve_route(self, client, seeded_followups):
         resp = client.post(
@@ -282,6 +381,7 @@ class TestWarmDashboardRoutes:
             follow_redirects=False,
         )
         assert resp.status_code == 303
+        assert resp.headers["location"] == "/followups/contact/contact-followup-1?date=2026-03-08"
         updated = get_followup_draft(seeded_followups)
         assert updated is not None
         assert updated.status == DraftApprovalStatus.APPROVED
@@ -293,6 +393,7 @@ class TestWarmDashboardRoutes:
             follow_redirects=False,
         )
         assert resp.status_code == 303
+        assert resp.headers["location"] == "/followups/contact/contact-followup-1?date=2026-03-08"
         updated = get_followup_draft(seeded_followups)
         assert updated is not None
         assert updated.status == DraftApprovalStatus.REJECTED
@@ -307,6 +408,142 @@ class TestWarmDashboardRoutes:
         updated = get_followup_draft(seeded_followups)
         assert updated is not None
         assert updated.status == DraftApprovalStatus.APPROVED
+
+    def test_briefing_route_shows_contact_level_actions(self, client, seeded_followups):
+        resp = client.get("/briefing")
+        assert resp.status_code == 200
+        assert "/followups/contact/contact-followup-1?date=2026-03-08" in resp.text
+        assert "/followups/contact/contact-followup-2?date=2026-03-08" in resp.text
+        assert "View Draft" in resp.text
+        assert "View Analysis" in resp.text
+
+    def test_followup_edit_persists_pending_draft(self, client, seeded_followups):
+        resp = client.post(
+            f"/followups/{seeded_followups}/edit",
+            data={
+                "subject": "Updated subject",
+                "body": _valid_followup_edit_body("Updated subject"),
+            },
+            follow_redirects=False,
+        )
+
+        assert resp.status_code == 303
+        updated = get_followup_draft(seeded_followups)
+        assert updated is not None
+        assert updated.subject == "Updated subject"
+        assert "You asked for timing options" in updated.body
+        assert updated.status == DraftApprovalStatus.PENDING
+        assert updated.edited_at is not None
+
+    def test_followup_edit_resets_approved_draft_to_pending(self, client, seeded_followups):
+        approved = get_followup_draft(seeded_followups)
+        assert approved is not None
+        approved.status = DraftApprovalStatus.APPROVED
+        approved.approved_at = "2026-03-08T12:00:00+00:00"
+        save_followup_draft(approved)
+
+        resp = client.post(
+            f"/followups/{seeded_followups}/edit",
+            data={
+                "subject": "Approved but edited",
+                "body": _valid_followup_edit_body("Approved but edited"),
+            },
+            follow_redirects=False,
+        )
+
+        assert resp.status_code == 303
+        updated = get_followup_draft(seeded_followups)
+        assert updated is not None
+        assert updated.status == DraftApprovalStatus.PENDING
+        assert updated.approved_at is None
+
+    def test_followup_edit_resets_rejected_draft_to_pending(self, client, seeded_followups):
+        rejected = get_followup_draft(seeded_followups)
+        assert rejected is not None
+        rejected.status = DraftApprovalStatus.REJECTED
+        rejected.rejected_at = "2026-03-08T12:00:00+00:00"
+        rejected.rejection_reason = "Too generic"
+        save_followup_draft(rejected)
+
+        resp = client.post(
+            f"/followups/{seeded_followups}/edit",
+            data={
+                "subject": "Rejected but edited",
+                "body": _valid_followup_edit_body("Rejected but edited"),
+            },
+            follow_redirects=False,
+        )
+
+        assert resp.status_code == 303
+        updated = get_followup_draft(seeded_followups)
+        assert updated is not None
+        assert updated.status == DraftApprovalStatus.PENDING
+        assert updated.rejected_at is None
+        assert updated.rejection_reason is None
+
+    def test_followup_edit_resets_send_failed_draft_to_pending(self, client, seeded_followups):
+        failed = get_followup_draft(seeded_followups)
+        assert failed is not None
+        failed.status = DraftApprovalStatus.SEND_FAILED
+        failed.send_failed_at = "2026-03-08T12:00:00+00:00"
+        failed.dispatch_error = "smtp timeout"
+        save_followup_draft(failed)
+
+        resp = client.post(
+            f"/followups/{seeded_followups}/edit",
+            data={
+                "subject": "Retry subject",
+                "body": _valid_followup_edit_body("Retry subject"),
+            },
+            follow_redirects=False,
+        )
+
+        assert resp.status_code == 303
+        updated = get_followup_draft(seeded_followups)
+        assert updated is not None
+        assert updated.status == DraftApprovalStatus.PENDING
+        assert updated.send_failed_at is None
+        assert updated.dispatch_error is None
+
+    def test_followup_edit_blocks_dispatched_draft(self, client, seeded_followups):
+        dispatched = get_followup_draft(seeded_followups)
+        assert dispatched is not None
+        dispatched.status = DraftApprovalStatus.DISPATCHED
+        save_followup_draft(dispatched)
+
+        resp = client.post(
+            f"/followups/{seeded_followups}/edit",
+            data={
+                "subject": "Should fail",
+                "body": "Alex,\n\nBlocked edit.\n\nReply with \"unsubscribe\" to opt out.",
+            },
+        )
+
+        assert resp.status_code == 409
+        assert "can no longer be edited" in resp.text
+        updated = get_followup_draft(seeded_followups)
+        assert updated is not None
+        assert updated.subject == "Timing options for next week"
+
+    def test_followup_edit_validation_failure_does_not_persist(self, client, seeded_followups):
+        original = get_followup_draft(seeded_followups)
+        assert original is not None
+
+        resp = client.post(
+            f"/followups/{seeded_followups}/edit",
+            data={
+                "subject": "",
+                "body": "",
+            },
+        )
+
+        assert resp.status_code == 422
+        assert "Subject is required." in resp.text
+        assert "Body is required." in resp.text
+        updated = get_followup_draft(seeded_followups)
+        assert updated is not None
+        assert updated.subject == original.subject
+        assert updated.body == original.body
 
     @patch("dashboard.app.run_followup_orchestrator", new_callable=AsyncMock)
     def test_followup_generate_triggers_manual_orchestrator(self, mock_orchestrator, client):
@@ -529,6 +766,14 @@ class TestDashboardAuthAndWarmOnly:
     def test_followup_detail_returns_503_error_state_on_storage_failure(self, client):
         with patch("dashboard.app.get_followup_draft", side_effect=RuntimeError("db unavailable")):
             resp = client.get("/followups/followup-1")
+
+        assert resp.status_code == 503
+        assert "Follow-Up Unavailable" in resp.text
+        assert "could not be loaded right now" in resp.text
+
+    def test_followup_contact_detail_returns_503_error_state_on_storage_failure(self, client):
+        with patch("dashboard.app.load_followup_queue", side_effect=RuntimeError("db unavailable")):
+            resp = client.get("/followups/contact/contact-followup-1")
 
         assert resp.status_code == 503
         assert "Follow-Up Unavailable" in resp.text

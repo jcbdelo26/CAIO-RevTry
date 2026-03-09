@@ -6,7 +6,7 @@
 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
     <div>
         <h2 style="margin-bottom: 8px;">Warm Follow-Up Queue</h2>
-        <p style="color:#666;">Conversation-aware drafts only. Approval here changes warm file state only.</p>
+        <p style="color:#666;">Conversation-aware routed leads. Some leads include generated drafts; others show analysis-only review.</p>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <a href="/briefing" class="btn" style="background:#6c757d;color:white;">Back to Briefing</a>
@@ -76,7 +76,9 @@
             <td>{{ item.recommendedAction or "—" }}</td>
             <td>
                 {% if item.draftId %}
-                <a href="/followups/{{ item.draftId }}" class="btn" style="background:#007bff;color:white;">View</a>
+                <a href="/followups/contact/{{ item.contactId }}?date={{ item.businessDate }}" class="btn" style="background:#007bff;color:white;">View Draft</a>
+                {% else %}
+                <a href="/followups/contact/{{ item.contactId }}?date={{ item.businessDate }}" class="btn" style="background:#6c757d;color:white;">View Analysis</a>
                 {% endif %}
             </td>
         </tr>
