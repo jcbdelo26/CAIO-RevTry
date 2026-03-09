@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from pipeline.circuit_breaker import CircuitBreaker
@@ -69,3 +72,37 @@ class TestKPITracker:
         snapshot = tracker.get_latest_kpi(date_str="2026-03-08")
         assert snapshot is not None
         assert snapshot.sent_count == 5
+
+    def test_get_latest_kpi_returns_none_without_creating_directory(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OUTPUTS_DIR", str(tmp_path / "outputs"))
+        tracker = KPITracker(circuit_breaker=CircuitBreaker(state_path=tmp_path / "cb.json"))
+
+        snapshot = tracker.get_latest_kpi(date_str="2026-03-09")
+
+        assert snapshot is None
+        assert not (tmp_path / "outputs" / "kpi").exists()
+
+    def test_get_latest_kpi_returns_none_for_invalid_json(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OUTPUTS_DIR", str(tmp_path / "outputs"))
+        kpi_dir = tmp_path / "outputs" / "kpi"
+        kpi_dir.mkdir(parents=True, exist_ok=True)
+        (kpi_dir / "kpi_2026-03-09.json").write_text("{not-json", encoding="utf-8")
+        tracker = KPITracker(circuit_breaker=CircuitBreaker(state_path=tmp_path / "cb.json"))
+
+        snapshot = tracker.get_latest_kpi(date_str="2026-03-09")
+
+        assert snapshot is None
+
+    def test_record_metrics_still_creates_directory_and_latest_loads(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OUTPUTS_DIR", str(tmp_path / "outputs"))
+        tracker = KPITracker(circuit_breaker=CircuitBreaker(state_path=tmp_path / "cb.json"))
+
+        tracker.record_metrics(sent=3, opens=1, date_str="2026-03-09")
+
+        kpi_path = tmp_path / "outputs" / "kpi" / "kpi_2026-03-09.json"
+        assert kpi_path.exists()
+        saved = json.loads(kpi_path.read_text(encoding="utf-8"))
+        assert saved["sent_count"] == 3
+        snapshot = tracker.get_latest_kpi(date_str="2026-03-09")
+        assert snapshot is not None
+        assert snapshot.sent_count == 3

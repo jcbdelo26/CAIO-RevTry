@@ -45,17 +45,18 @@ MAX_UNSUB_RATE = 0.05
 MIN_REPLIES_AFTER_N_SENDS = (15, 1)  # At least 1 reply after 15 sends
 
 
-def _kpi_dir() -> Path:
+def _kpi_dir(create: bool = False) -> Path:
     outputs = Path(os.environ.get("OUTPUTS_DIR", "outputs"))
     d = outputs / "kpi"
-    d.mkdir(parents=True, exist_ok=True)
+    if create:
+        d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _kpi_path(date_str: str | None = None) -> Path:
+def _kpi_path(date_str: str | None = None, create_dir: bool = False) -> Path:
     if not date_str:
         date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return _kpi_dir() / f"kpi_{date_str}.json"
+    return _kpi_dir(create=create_dir) / f"kpi_{date_str}.json"
 
 
 def _escalation_path() -> Path:
@@ -83,7 +84,7 @@ class KPITracker:
         date = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
         # Load existing or start fresh
-        path = _kpi_path(date)
+        path = _kpi_path(date, create_dir=True)
         if path.exists():
             data = json.loads(path.read_text(encoding="utf-8"))
             snapshot = KPISnapshot(
@@ -186,10 +187,13 @@ class KPITracker:
     def get_latest_kpi(self, date_str: str | None = None) -> Optional[KPISnapshot]:
         """Load the latest KPI snapshot."""
         date = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        path = _kpi_path(date)
+        path = _kpi_path(date, create_dir=False)
         if not path.exists():
             return None
-        data = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
         return KPISnapshot(
             date=data["date"],
             sent_count=data["sent_count"],

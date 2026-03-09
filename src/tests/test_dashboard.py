@@ -541,6 +541,23 @@ class TestDashboardAuthAndWarmOnly:
         assert resp.status_code == 200
         assert "Dispatch data unavailable" in resp.text
 
+    def test_dispatch_view_renders_cleanly_when_kpi_snapshot_is_absent(self, client):
+        with patch("dashboard.app.KPITracker.get_latest_kpi", return_value=None):
+            resp = client.get("/dispatch")
+
+        assert resp.status_code == 200
+        assert "Dispatch data unavailable" not in resp.text
+        assert "Daily Limit / Channel" in resp.text
+
+    def test_dispatch_view_uses_env_override_for_daily_limit(self, client, monkeypatch):
+        monkeypatch.setenv("DISPATCH_DAILY_LIMIT", "30")
+
+        with patch("dashboard.app.KPITracker.get_latest_kpi", return_value=None):
+            resp = client.get("/dispatch")
+
+        assert resp.status_code == 200
+        assert ">30<" in resp.text
+
     def test_dispatch_status_returns_degraded_json_on_storage_failure(self, client):
         with patch("dashboard.app.CircuitBreaker", side_effect=RuntimeError("db unavailable")):
             resp = client.get("/dispatch/status")
