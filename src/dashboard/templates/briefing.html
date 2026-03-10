@@ -10,15 +10,6 @@
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <a href="/followups" class="btn" style="background:#007bff;color:white;">Open Follow-Up Queue</a>
-        <form method="POST" action="/followups/generate" style="display:inline;">
-            <input type="hidden" name="force" value="true">
-            <button type="submit" class="btn" style="background:#28a745;color:white;border:none;cursor:pointer;">Re-Generate Drafts</button>
-        </form>
-        <form method="POST" action="/followups/generate" style="display:inline;">
-            <input type="hidden" name="force" value="true">
-            <input type="hidden" name="refresh" value="true">
-            <button type="submit" class="btn" style="background:#6f42c1;color:white;border:none;cursor:pointer;">Refresh & Generate</button>
-        </form>
     </div>
 </div>
 
