@@ -5,6 +5,13 @@
 {% block content %}
 <h2 style="margin-bottom: 16px;">Outreach Dispatch</h2>
 
+{% if dry_run %}
+<div class="card" style="border-left: 4px solid #ffc107; margin-bottom: 16px; background: #fff8e1;">
+    <strong>Dry-Run Mode Active</strong>
+    <p style="margin: 8px 0 0; color: #555;">Dispatch will log email payloads but will NOT send real emails. Set <code>DISPATCH_DRY_RUN=false</code> to enable live sending.</p>
+</div>
+{% endif %}
+
 {% if load_error %}
 <div class="card" style="border-left: 4px solid #dc3545; margin-bottom: 16px;">
     <strong>Dispatch data unavailable</strong>

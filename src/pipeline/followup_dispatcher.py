@@ -6,7 +6,10 @@ rate limit, circuit breaker, dedup, and GHL send.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 from dashboard.followup_storage import (
     list_followup_drafts,
@@ -40,6 +43,7 @@ async def dispatch_approved_followups(
     rate_limiter: DailyRateLimiter | None = None,
     circuit_breaker: CircuitBreaker | None = None,
     ghl: GHLClient | None = None,
+    dry_run: bool = False,
 ) -> FollowupDispatchResult:
     """Dispatch APPROVED warm follow-up drafts through the shared GHL safety chain."""
     result = FollowupDispatchResult()
@@ -92,17 +96,27 @@ async def dispatch_approved_followups(
             continue
 
         try:
-            if own_ghl and ghl is None:
-                ghl = GHLClient()
+            if dry_run:
+                logger.info(
+                    "DRY_RUN dispatch: draft=%s contact=%s email=%s subject=%s body_len=%d",
+                    draft.draft_id,
+                    draft.ghl_contact_id,
+                    draft.contact_email,
+                    draft.subject,
+                    len(draft.body),
+                )
+            else:
+                if own_ghl and ghl is None:
+                    ghl = GHLClient()
 
-            await circuit_breaker.call(
-                CHANNEL,
-                ghl.send_email,
-                contact_id=draft.ghl_contact_id,
-                to_email=draft.contact_email,
-                subject=draft.subject,
-                body=draft.body,
-            )
+                await circuit_breaker.call(
+                    CHANNEL,
+                    ghl.send_email,
+                    contact_id=draft.ghl_contact_id,
+                    to_email=draft.contact_email,
+                    subject=draft.subject,
+                    body=draft.body,
+                )
 
             mark_followup_dispatched(draft.draft_id, CHANNEL)
             rate_limiter.record_send(CHANNEL)

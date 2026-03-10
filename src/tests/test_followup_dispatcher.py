@@ -250,3 +250,65 @@ class TestFollowupDispatcher:
         assert stored is not None
         assert stored.status == DraftApprovalStatus.SEND_FAILED
         assert stored.dispatch_error == "SMTP timeout"
+
+    @pytest.mark.asyncio
+    async def test_dry_run_dispatches_without_ghl_call(self, tmp_path):
+        draft = _seed_approved_followup()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        result = await dispatch_approved_followups(
+            rate_limiter=rl,
+            circuit_breaker=cb,
+            dry_run=True,
+        )
+
+        stored = get_followup_draft(draft.draft_id)
+        assert result.dispatched == 1
+        assert result.failed == 0
+        assert stored is not None
+        assert stored.status == DraftApprovalStatus.DISPATCHED
+
+    @pytest.mark.asyncio
+    async def test_dry_run_logs_edited_content(self, tmp_path, caplog):
+        draft = _seed_approved_followup()
+        latest = get_followup_draft(draft.draft_id)
+        assert latest is not None
+        latest.subject = "DRY RUN edited subject"
+        latest.body = "DRY RUN edited body content"
+        save_followup_draft(latest)
+        approve_followup_draft(latest.draft_id)
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        import logging
+
+        with caplog.at_level(logging.INFO, logger="pipeline.followup_dispatcher"):
+            result = await dispatch_approved_followups(
+                rate_limiter=rl,
+                circuit_breaker=cb,
+                dry_run=True,
+            )
+
+        assert result.dispatched == 1
+        assert "DRY RUN edited subject" in caplog.text
+        assert "DRY_RUN dispatch" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_dry_run_still_checks_rate_limit(self, tmp_path):
+        _seed_approved_followup()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=1, state_path=tmp_path / "rl.json")
+        rl.record_send("ghl")
+
+        result = await dispatch_approved_followups(
+            rate_limiter=rl,
+            circuit_breaker=cb,
+            dry_run=True,
+        )
+
+        assert result.dispatched == 0
+        assert result.skipped_rate_limit == 1

@@ -688,6 +688,7 @@ async def dispatch_view(
 ) -> HTMLResponse:
     """Show unified warm/cold dispatch queues and recent dispatch history."""
     warm_only = is_warm_only_mode()
+    dry_run = os.environ.get("DISPATCH_DRY_RUN", "").lower() in ("true", "1", "yes")
     warm_queue = []
     warm_dispatched = []
     cold_queue = []
@@ -732,6 +733,7 @@ async def dispatch_view(
             "daily_limit": daily_limit,
             "kpi": snapshot,
             "load_error": load_error,
+            "dry_run": dry_run,
         },
     )
 
@@ -743,9 +745,11 @@ async def dispatch_run(_: None = Depends(require_dashboard_auth)):
         cb = CircuitBreaker()
         rl = DailyRateLimiter()
         warm_only = is_warm_only_mode()
+        dry_run = os.environ.get("DISPATCH_DRY_RUN", "").lower() in ("true", "1", "yes")
         warm = await dispatch_approved_followups(
             rate_limiter=rl,
             circuit_breaker=cb,
+            dry_run=dry_run,
         )
         if warm_only:
             cold = None
