@@ -531,7 +531,7 @@ async def edit_followup_endpoint(
 
     updated = draft.model_copy(deep=True)
     updated.subject = subject.strip()
-    updated.body = body.strip()
+    updated.body = body.strip().replace("\r\n", "\n")
 
     failures: list[str] = []
     if not updated.subject:
