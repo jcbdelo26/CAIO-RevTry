@@ -714,6 +714,20 @@
   - degrades cleanly when APScheduler is not installed so dashboard startup does not crash
   Tests: `src/tests/test_scheduler.py` covers 6 AM America/Chicago config, local business-date handling, overlap protection, forced reruns, and job registration
 
+- [x] **Task 59A: Vercel Cron Job for daily pipeline** (AUTO)
+  Status: DONE | Code complete: 2026-03-11
+  --> Depends on: Task 59
+  Problem: APScheduler requires a long-running process; Vercel serverless functions spin down between requests.
+  Solution: Vercel Cron Job (`vercel.json` crons config) triggers `GET /api/cron/warm-pipeline` daily at 12:00 UTC (6:00 AM CT).
+  Files: `src/dashboard/app.py` (cron endpoint + CRON_SECRET auth), `vercel.json` (crons + maxDuration=300)
+  Implemented:
+  - `GET /api/cron/warm-pipeline` endpoint with `CRON_SECRET` Bearer token validation
+  - `vercel.json` crons config: `0 12 * * *` (daily 6 AM CT)
+  - `maxDuration: 300` for Vercel Pro (5-min pipeline timeout)
+  - Vercel Pro plan activated ($20/mo, $1.87/$20.00 used)
+  - Pipeline refresh run 2026-03-11: 50 candidates → 39 eligible → 27 saved drafts ($0.38)
+  Tests: `src/tests/test_dashboard.py::TestCronWarmPipeline` — 4 tests (missing secret, bad token, valid trigger, pipeline failure)
+
 - [x] **Task 60: Environment contract finalization** (AUTO)
   Status: DONE | Config complete: 2026-03-09
   --> Depends on: Tasks 57-59
