@@ -1126,10 +1126,14 @@
 
 ### Batch 4: CLAUDE.md Token Audit
 
-- [ ] **Task 82: CLAUDE.md token audit and compaction-resilience** (AUTO)
-  Status: NOT_STARTED
-  --> Depends on: Tasks 75-77
+- [x] **Task 82: CLAUDE.md token audit and compaction-resilience** (AUTO)
+  Status: DONE | Completed: 2026-03-11
+  --> Depends on: Tasks 75-77 (executed early — documentation-only, zero runtime risk)
   Files: `Project-RevTry/CLAUDE.md`
+  Results: 282 → 146 lines (48% reduction)
+  Anchored: tag safety rules, gate-failure behavior, DnD filtering, dispatch safety chain
+  Moved to vault: persistence model, code structure, deployment config, validation commands, env contract
+  Created: 5 new vault files in `vault/integrations/` and `vault/operations/`
 
 ### Phase 3G Gates
 
@@ -1266,6 +1270,9 @@ Task 3B   Live MCP discovery
                                       --> Task 61G-M  Tag-safety hardening [PHASE_3E_TAG_SAFETY_HOTFIX]
                                         --> Task 62  Vercel deployment
                                         --> Task 64  Dani verification [HERO OUTCOME 3]
+                                          --> Tasks 75-77  Measurement baseline [PHASE_3G]
+                                          --> Tasks 78-80  Slash-command enhancements
+                                          --> Task 81  Enhanced retry
                                           --> Task 65  HeyReach warmup [HUMAN - 28d timer]
                                           --> Task 66  Instantly reactivation
                                             --> Task 68  Cold validation [HERO OUTCOME 4]
