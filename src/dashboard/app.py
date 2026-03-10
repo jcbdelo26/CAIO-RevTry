@@ -539,19 +539,22 @@ async def edit_followup_endpoint(
     if not updated.body:
         failures.append("Body is required.")
 
-    gate2 = validate_followup_gate2([updated])
-    if not gate2.passed:
-        failures.extend(gate2.failures)
+    try:
+        gate2 = validate_followup_gate2([updated])
+        if not gate2.passed:
+            failures.extend(gate2.failures)
 
-    analyses = {}
-    summaries = {}
-    if context["analysis"] is not None:
-        analyses[updated.contact_id] = context["analysis"]
-    if context["summary"] is not None:
-        summaries[updated.contact_id] = context["summary"]
-    gate3 = validate_followup_gate3([updated], analyses, summaries or None)
-    if not gate3.passed:
-        failures.extend(gate3.failures)
+        analyses = {}
+        summaries = {}
+        if context["analysis"] is not None:
+            analyses[updated.contact_id] = context["analysis"]
+        if context["summary"] is not None:
+            summaries[updated.contact_id] = context["summary"]
+        gate3 = validate_followup_gate3([updated], analyses, summaries or None)
+        if not gate3.passed:
+            failures.extend(gate3.failures)
+    except FileNotFoundError:
+        logger.warning("Vault files missing — skipping Gate 2/3 validation for edit")
 
     if failures:
         context["edit_errors"] = failures
