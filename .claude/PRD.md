@@ -131,6 +131,7 @@ Enable a two-person GTM team to operate a staged, approval-gated Revenue Operati
 - `DATABASE_URL` — canonical Postgres connection string for deployed warm mode
 - `POSTGRES_URL` — fallback only if `DATABASE_URL` is absent
 - `WARM_ONLY_MODE` — hides cold operator surfaces and redirects `/` to `/briefing` in deployed warm-first mode
+- `DISPATCH_DRY_RUN` — when `true`, dispatch logs email payloads without sending via GHL; safety mechanism for E2E testing and pre-launch verification
 
 ---
 
