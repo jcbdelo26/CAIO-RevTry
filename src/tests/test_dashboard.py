@@ -768,6 +768,53 @@ class TestWarmDashboardRoutes:
         assert payload["totals"] == {"dispatched": 3, "failed": 1}
 
 
+class TestCronWarmPipeline:
+    def test_cron_rejects_missing_secret(self, client):
+        resp = client.get("/api/cron/warm-pipeline")
+        assert resp.status_code == 500
+
+    def test_cron_rejects_bad_token(self, client, monkeypatch):
+        monkeypatch.setenv("CRON_SECRET", "valid-secret-123")
+        resp = client.get(
+            "/api/cron/warm-pipeline",
+            headers={"Authorization": "Bearer wrong-secret"},
+        )
+        assert resp.status_code == 401
+
+    @patch("dashboard.app.run_followup_orchestrator", new_callable=AsyncMock)
+    def test_cron_triggers_pipeline_with_valid_secret(self, mock_orchestrator, client, monkeypatch):
+        monkeypatch.setenv("CRON_SECRET", "valid-secret-123")
+        mock_orchestrator.return_value = {
+            "status": "complete",
+            "briefing_date": "2026-03-10",
+            "saved": 5,
+            "errors": [],
+        }
+
+        resp = client.get(
+            "/api/cron/warm-pipeline",
+            headers={"Authorization": "Bearer valid-secret-123"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "complete"
+        assert mock_orchestrator.await_args.kwargs["task_id"] == "warm-followup-cron"
+        assert mock_orchestrator.await_args.kwargs["force"] is False
+
+    @patch("dashboard.app.run_followup_orchestrator", new_callable=AsyncMock)
+    def test_cron_returns_500_on_pipeline_failure(self, mock_orchestrator, client, monkeypatch):
+        monkeypatch.setenv("CRON_SECRET", "valid-secret-123")
+        mock_orchestrator.side_effect = RuntimeError("DB connection failed")
+
+        resp = client.get(
+            "/api/cron/warm-pipeline",
+            headers={"Authorization": "Bearer valid-secret-123"},
+        )
+
+        assert resp.status_code == 500
+        assert resp.json()["status"] == "error"
+
+
 class TestDashboardAuthAndWarmOnly:
     def test_healthz_stays_open_when_auth_enabled(self, monkeypatch):
         monkeypatch.setenv("DASHBOARD_AUTH_ENABLED", "true")

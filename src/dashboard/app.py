@@ -11,6 +11,7 @@ Endpoints:
 - GET /dispatch         — Dispatch queue + history
 - POST /dispatch/run    — Trigger a dispatch cycle
 - GET /dispatch/status  — JSON: circuit breaker states, daily counts, KPI
+- GET /api/cron/warm-pipeline — Vercel Cron Job trigger (CRON_SECRET auth)
 """
 
 from __future__ import annotations
@@ -432,6 +433,37 @@ async def generate_followups(
     status = result.get("status")
     if status in {"blocked_missing_anthropic_api_key", "blocked_missing_ghl_credentials", "circuit_open"}:
         return JSONResponse(status_code=503, content=result)
+
+    return JSONResponse(status_code=200, content=result)
+
+
+def _verify_cron_secret(request: Request) -> None:
+    """Validate the Vercel CRON_SECRET Authorization header."""
+    secret = os.environ.get("CRON_SECRET", "")
+    if not secret:
+        raise HTTPException(status_code=500, detail="CRON_SECRET not configured")
+    auth = request.headers.get("authorization", "")
+    if auth != f"Bearer {secret}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+@app.get("/api/cron/warm-pipeline")
+async def cron_warm_pipeline(request: Request):
+    """Vercel Cron Job endpoint — triggers daily warm follow-up pipeline.
+
+    Secured via CRON_SECRET Bearer token (set as Vercel env var).
+    Runs at 12:00 UTC (6:00 AM CT) daily via vercel.json crons config.
+    """
+    _verify_cron_secret(request)
+
+    try:
+        result = await run_followup_orchestrator(
+            task_id="warm-followup-cron",
+            force=False,
+        )
+    except Exception:
+        logger.exception("Cron warm pipeline failed")
+        return JSONResponse(status_code=500, content={"status": "error", "errors": ["Pipeline execution failed"]})
 
     return JSONResponse(status_code=200, content=result)
 

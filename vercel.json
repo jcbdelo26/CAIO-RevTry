@@ -9,10 +9,21 @@
       }
     }
   ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 300
+    }
+  },
   "routes": [
     {
       "src": "/(.*)",
       "dest": "api/index.py"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/warm-pipeline",
+      "schedule": "0 12 * * *"
     }
   ],
   "env": {
