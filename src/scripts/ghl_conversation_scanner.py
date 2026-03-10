@@ -140,6 +140,60 @@ def load_candidates(batch_size: int | None = None) -> list[dict[str, Any]]:
     return candidates[:limit]
 
 
+async def refresh_candidates(
+    ghl: GHLClient | None = None,
+    batch_size: int = 100,
+) -> list[dict[str, Any]]:
+    """Discover fresh candidates from GHL and merge with the existing pool.
+
+    Queries GHL for contacts, merges with the cached candidate list
+    (deduplicating by ghl_contact_id), and writes the updated list back.
+    """
+    own_ghl = ghl is None
+    ghl = ghl or GHLClient()
+
+    try:
+        existing = load_candidates(batch_size=9999)
+        existing_ids = {c["ghl_contact_id"] for c in existing}
+
+        new_contacts = await ghl.search_contacts(limit=batch_size)
+
+        fresh: list[dict[str, Any]] = []
+        for contact in new_contacts:
+            contact_id = contact.get("id", "")
+            if not contact_id or contact_id in existing_ids:
+                continue
+            email = (contact.get("email") or "").strip()
+            if not email:
+                continue
+            fresh.append({
+                "ghl_contact_id": contact_id,
+                "email": email,
+                "first_name": contact.get("firstName") or "",
+                "last_name": contact.get("lastName") or "",
+                "company_name": contact.get("companyName") or "",
+                "score": 0,
+            })
+
+        merged = existing + fresh
+        logger.info("Candidate refresh: %d existing + %d new = %d total", len(existing), len(fresh), len(merged))
+
+        cache_payload = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "source": "refresh_merge",
+            "total_candidates": len(merged),
+            "candidates": merged,
+        }
+        cache_path = _candidate_cache_path()
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(cache_payload, indent=2), encoding="utf-8")
+
+        return merged
+    finally:
+        if own_ghl:
+            await ghl.close()
+
+
 def _parse_timestamp(value: str) -> Optional[datetime]:
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))

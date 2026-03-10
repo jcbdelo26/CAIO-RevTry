@@ -23,10 +23,10 @@ from typing import Any, Optional
 
 from agents.conversation_analyst_agent import AnalysisBatchResult, analyze_batch
 from agents.followup_draft_agent import DraftBatchResult, draft_batch
-from dashboard.followup_storage import save_followup_draft
+from dashboard.followup_storage import get_followup_draft, save_followup_draft
 from integrations.anthropic_client import AnthropicClient, MissingAnthropicApiKeyError
 from integrations.ghl_client import MissingGhlCredentialsError
-from models.schemas import ContactConversationSummary, ConversationAnalysis, DailyBriefing
+from models.schemas import ContactConversationSummary, ConversationAnalysis, DailyBriefing, DraftApprovalStatus
 from persistence.factory import get_storage_backend
 from pipeline.circuit_breaker import CircuitBreaker
 from scripts.ghl_conversation_scanner import (
@@ -318,13 +318,21 @@ async def run_followup_orchestrator(
                 failures = gate2.failures + gate3.failures
                 return (gate2.passed and gate3.passed), failures
 
+            def _safe_save_draft(draft) -> bool:
+                """Save draft unless an existing draft has already been acted on. Returns True if actually saved."""
+                existing = get_followup_draft(draft.draft_id)
+                if existing and existing.status != DraftApprovalStatus.PENDING:
+                    return False  # Already acted on — preserve, don't overwrite
+                save_followup_draft(draft)
+                return True
+
             failed_contact_ids: list[str] = []
             errors_by_contact: dict[str, list[str]] = {}
             for draft in draft_result.drafts:
                 passed, failures = _validate_draft(draft)
                 if passed:
-                    save_followup_draft(draft)
-                    saved_count += 1
+                    if _safe_save_draft(draft):
+                        saved_count += 1
                     continue
 
                 failed_contact_ids.append(draft.contact_id)
@@ -347,10 +355,10 @@ async def run_followup_orchestrator(
                     for draft in retry_result.drafts:
                         passed, _failures = _validate_draft(draft)
                         if passed:
-                            save_followup_draft(draft)
-                            retry_saved += 1
+                            if _safe_save_draft(draft):
+                                retry_saved += 1
+                                saved_count += 1
                             validation_failed -= 1
-                            saved_count += 1
                             errors_by_contact.pop(draft.contact_id, None)
                     trace.log_event("draft_retry_complete", {"retrySaved": retry_saved, "retryFailed": len(retry_analyses) - retry_saved})
 

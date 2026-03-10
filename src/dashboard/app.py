@@ -62,6 +62,7 @@ from persistence.factory import get_storage_backend, get_storage_backend_name, v
 from scripts.ghl_conversation_scanner import select_primary_thread
 from validators.followup_gate2_validator import validate_followup_gate2
 from validators.followup_gate3_validator import validate_followup_gate3
+
 logger = logging.getLogger(__name__)
 
 
@@ -301,6 +302,13 @@ async def briefing_view(
             generatedAt="error",
         )
         queue = []
+    # Compute live draft status counts from fresh queue data
+    draft_status_counts = {"pending": 0, "approved": 0, "rejected": 0, "dispatched": 0, "send_failed": 0}
+    for item in queue:
+        status = item.get("status")
+        if status is not None:
+            draft_status_counts[status.value.lower()] += 1
+
     return templates.TemplateResponse(
         request,
         "briefing.html",
@@ -308,6 +316,8 @@ async def briefing_view(
             "briefing": briefing,
             "queue": queue,
             "selected_date": briefing.date,
+            "live_draft_count": len(queue),
+            "draft_status_counts": draft_status_counts,
         },
     )
 
@@ -388,12 +398,23 @@ async def batch_reject_followups(
 @app.post("/followups/generate")
 async def generate_followups(
     force: bool = Form(False),
+    refresh: bool = Form(False),
+    batch_size: int | None = Form(None),
+    scan_days: int | None = Form(None),
     _: None = Depends(require_dashboard_auth),
 ):
+    batch_size = min(batch_size, 500) if batch_size else None
+    scan_days = min(scan_days, 180) if scan_days else None
     try:
+        if refresh:
+            from scripts.ghl_conversation_scanner import refresh_candidates
+            await refresh_candidates(batch_size=batch_size or 100)
+
         result = await run_followup_orchestrator(
             task_id="warm-followup-manual",
             force=force,
+            batch_size=batch_size,
+            scan_days=scan_days,
         )
     except Exception:
         logger.exception("Failed to generate follow-ups")

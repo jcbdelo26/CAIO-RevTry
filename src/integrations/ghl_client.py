@@ -228,3 +228,21 @@ class GHLClient:
         Returns full contact record including name, email, company, tags.
         """
         return await self._request("GET", f"/contacts/{contact_id}")
+
+    async def search_contacts(
+        self,
+        *,
+        query: str = "",
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Search contacts by query string.
+
+        Uses GET /contacts/ with locationId. The query param filters by
+        name, email, phone, company, or tag.
+        """
+        resp = await self._request(
+            "GET",
+            "/contacts/",
+            params={"locationId": self.location_id, "query": query, "limit": limit},
+        )
+        return resp.get("contacts", [])

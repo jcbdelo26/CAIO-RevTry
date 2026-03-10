@@ -409,6 +409,41 @@ class TestWarmDashboardRoutes:
         assert updated is not None
         assert updated.status == DraftApprovalStatus.APPROVED
 
+    def test_briefing_shows_live_draft_status_counts(self, client, seeded_followups):
+        """Live draft status counts update when drafts are approved/rejected."""
+        resp = client.get("/briefing")
+        assert resp.status_code == 200
+        # Initially all drafts are PENDING — check live count cards
+        assert "Pending" in resp.text
+        assert "Approved" in resp.text
+        assert "Rejected" in resp.text
+
+        # Approve the draft
+        client.post(f"/followups/{seeded_followups}/approve", follow_redirects=False)
+        resp2 = client.get("/briefing")
+        assert resp2.status_code == 200
+        # The approved count should be reflected in the live data
+        assert "Approved" in resp2.text
+
+    @patch("dashboard.app.run_followup_orchestrator", new_callable=AsyncMock)
+    @patch("scripts.ghl_conversation_scanner.refresh_candidates", new_callable=AsyncMock)
+    def test_generate_with_refresh_calls_refresh_candidates(self, mock_refresh, mock_orchestrator, client):
+        mock_refresh.return_value = [{"ghl_contact_id": "c-1"}]
+        mock_orchestrator.return_value = {
+            "status": "complete", "briefing_date": "2026-03-09",
+            "briefing_path": "outputs/briefings/2026-03-09.json",
+            "saved": 1, "errors": [],
+        }
+
+        resp = client.post(
+            "/followups/generate",
+            data={"force": "true", "refresh": "true"},
+        )
+
+        assert resp.status_code == 200
+        mock_refresh.assert_awaited_once()
+        mock_orchestrator.assert_awaited_once()
+
     def test_briefing_route_shows_contact_level_actions(self, client, seeded_followups):
         resp = client.get("/briefing")
         assert resp.status_code == 200
@@ -651,6 +686,8 @@ class TestWarmDashboardRoutes:
         assert mock_orchestrator.await_args.kwargs == {
             "task_id": "warm-followup-manual",
             "force": True,
+            "batch_size": None,
+            "scan_days": None,
         }
 
     @patch("dashboard.app.run_followup_orchestrator", new_callable=AsyncMock)

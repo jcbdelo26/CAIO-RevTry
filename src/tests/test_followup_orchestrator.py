@@ -428,3 +428,70 @@ class TestFollowupOrchestrator:
 
         assert get_followup_draft("draft-day-one") is not None
         assert get_followup_draft("draft-day-two") is not None
+
+    @pytest.mark.asyncio
+    async def test_rerun_skips_approved_drafts(self):
+        """Re-running the pipeline must not overwrite a draft that's already been approved."""
+        from dashboard.followup_storage import save_followup_draft as direct_save
+
+        summary = _build_summary()
+        analysis = _build_analysis()
+        signatures = load_signatures()
+
+        # Pre-save an APPROVED draft with the same draft_id
+        approved_draft = _build_valid_draft().model_copy(
+            update={
+                "status": DraftApprovalStatus.APPROVED,
+                "approved_at": "2026-03-09T10:00:00+00:00",
+                "subject": "Original approved subject",
+            }
+        )
+        direct_save(approved_draft)
+
+        # Pipeline generates a new draft with the same draft_id
+        new_draft = _build_valid_draft().model_copy(update={"subject": "New regenerated subject"})
+
+        with (
+            patch("pipeline.followup_orchestrator.scan_all_contacts", AsyncMock(return_value=[summary])),
+            patch(
+                "pipeline.followup_orchestrator.analyze_batch",
+                AsyncMock(
+                    return_value=AnalysisBatchResult(
+                        analyses=[analysis], skipped=0, failed=0, errors=[],
+                        skipped_no_conversation=0, skipped_no_email=0,
+                    )
+                ),
+            ),
+            patch(
+                "pipeline.followup_orchestrator.draft_batch",
+                AsyncMock(return_value=DraftBatchResult(drafts=[new_draft], failed=0, errors=[])),
+            ),
+            patch(
+                "pipeline.followup_orchestrator.validate_followup_gate2",
+                side_effect=lambda drafts: validate_followup_gate2(
+                    drafts,
+                    exclusions=Exclusions(blocked_domains=set(), blocked_emails=set()),
+                    signatures=signatures,
+                ),
+            ),
+            patch(
+                "pipeline.followup_orchestrator.validate_followup_gate3",
+                side_effect=validate_followup_gate3,
+            ),
+        ):
+            result = await run_followup_orchestrator(
+                candidate_records=[{"ghl_contact_id": "ghl-contact-1"}],
+                anthropic_client=AsyncMock(),
+                force=True,
+                reference_time=datetime(2026, 3, 9, 12, 0, tzinfo=timezone.utc),
+            )
+
+        # saved=0 because the approved draft was protected (not overwritten)
+        assert result["status"] == "no_valid_drafts"
+        assert result["saved"] == 0
+
+        # Verify the approved draft was NOT overwritten
+        stored = get_followup_draft("followup-1")
+        assert stored is not None
+        assert stored.status == DraftApprovalStatus.APPROVED
+        assert stored.subject == "Original approved subject"

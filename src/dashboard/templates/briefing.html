@@ -8,8 +8,17 @@
         <h2 style="margin-bottom: 8px;">Warm Follow-Up Briefing</h2>
         <p style="color:#666;">{{ briefing.date }} · prioritized queue for conversation-aware follow-up review.</p>
     </div>
-    <div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <a href="/followups" class="btn" style="background:#007bff;color:white;">Open Follow-Up Queue</a>
+        <form method="POST" action="/followups/generate" style="display:inline;">
+            <input type="hidden" name="force" value="true">
+            <button type="submit" class="btn" style="background:#28a745;color:white;border:none;cursor:pointer;">Re-Generate Drafts</button>
+        </form>
+        <form method="POST" action="/followups/generate" style="display:inline;">
+            <input type="hidden" name="force" value="true">
+            <input type="hidden" name="refresh" value="true">
+            <button type="submit" class="btn" style="background:#6f42c1;color:white;border:none;cursor:pointer;">Refresh & Generate</button>
+        </form>
     </div>
 </div>
 
@@ -35,8 +44,20 @@
         <div class="label">Cooling</div>
     </div>
     <div class="stat-card">
-        <div class="count">{{ briefing.drafts_generated }}</div>
+        <div class="count">{{ live_draft_count }}</div>
         <div class="label">Drafts</div>
+    </div>
+    <div class="stat-card">
+        <div class="count" style="color:#28a745;">{{ draft_status_counts.approved }}</div>
+        <div class="label">Approved</div>
+    </div>
+    <div class="stat-card">
+        <div class="count" style="color:#dc3545;">{{ draft_status_counts.rejected }}</div>
+        <div class="label">Rejected</div>
+    </div>
+    <div class="stat-card">
+        <div class="count" style="color:#856404;">{{ draft_status_counts.pending }}</div>
+        <div class="label">Pending</div>
     </div>
 </div>
 

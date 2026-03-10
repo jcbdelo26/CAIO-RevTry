@@ -18,6 +18,7 @@ from scripts.ghl_conversation_scanner import (
     has_valid_email,
     is_dnd_or_unsubscribed,
     load_candidates,
+    refresh_candidates,
     scan_all_contacts,
     scan_contact,
     select_primary_thread,
@@ -28,6 +29,29 @@ from scripts.ghl_conversation_scanner import (
 
 
 class TestGHLClientGETMethods:
+    @pytest.mark.asyncio
+    async def test_search_contacts(self):
+        client = GHLClient(api_key="test-key", location_id="loc-123")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"contacts": [{"id": "c-1", "email": "a@test.com"}]}
+        mock_resp.raise_for_status = MagicMock()
+
+        mock_http = AsyncMock()
+        mock_http.is_closed = False
+        mock_http.request = AsyncMock(return_value=mock_resp)
+        client._client = mock_http
+
+        result = await client.search_contacts(limit=10)
+
+        mock_http.request.assert_called_once()
+        call_args = mock_http.request.call_args
+        assert call_args[0][0] == "GET"
+        assert call_args[0][1] == "/contacts/"
+        assert call_args[1]["params"]["locationId"] == "loc-123"
+        assert call_args[1]["params"]["limit"] == 10
+        assert result == [{"id": "c-1", "email": "a@test.com"}]
+
     @pytest.mark.asyncio
     async def test_search_conversations(self):
         client = GHLClient(api_key="test-key", location_id="loc-123")
@@ -764,3 +788,75 @@ class TestDndFiltering:
         assert summary is not None
         assert summary.dnd is False
         assert summary.tags == []
+
+
+class TestRefreshCandidates:
+    @pytest.mark.asyncio
+    async def test_refresh_merges_new_contacts_with_existing(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OUTPUTS_DIR", str(tmp_path))
+        monkeypatch.setenv("GHL_API_KEY", "test-key")
+        monkeypatch.setenv("GHL_LOCATION_ID", "loc-123")
+
+        existing = [
+            {"ghl_contact_id": "c-1", "email": "one@test.com", "first_name": "One", "last_name": "A", "company_name": "Co", "score": 90},
+        ]
+        (tmp_path / "ghl_followup_candidates.json").write_text(json.dumps({"candidates": existing}))
+
+        mock_ghl = MagicMock()
+        mock_ghl.search_contacts = AsyncMock(return_value=[
+            {"id": "c-2", "email": "two@test.com", "firstName": "Two", "lastName": "B", "companyName": "Co2"},
+            {"id": "c-3", "email": "three@test.com", "firstName": "Three", "lastName": "C", "companyName": "Co3"},
+        ])
+
+        result = await refresh_candidates(ghl=mock_ghl, batch_size=50)
+
+        assert len(result) == 3
+        ids = [c["ghl_contact_id"] for c in result]
+        assert ids == ["c-1", "c-2", "c-3"]
+
+        # Verify cache was written
+        cache = json.loads((tmp_path / "ghl_followup_candidates.json").read_text())
+        assert cache["source"] == "refresh_merge"
+        assert cache["total_candidates"] == 3
+
+    @pytest.mark.asyncio
+    async def test_refresh_deduplicates_existing_contacts(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OUTPUTS_DIR", str(tmp_path))
+        monkeypatch.setenv("GHL_API_KEY", "test-key")
+        monkeypatch.setenv("GHL_LOCATION_ID", "loc-123")
+
+        existing = [
+            {"ghl_contact_id": "c-1", "email": "one@test.com", "first_name": "One", "last_name": "A", "company_name": "Co", "score": 90},
+        ]
+        (tmp_path / "ghl_followup_candidates.json").write_text(json.dumps({"candidates": existing}))
+
+        mock_ghl = MagicMock()
+        mock_ghl.search_contacts = AsyncMock(return_value=[
+            {"id": "c-1", "email": "one@test.com", "firstName": "One", "lastName": "A"},  # duplicate
+            {"id": "c-2", "email": "two@test.com", "firstName": "Two", "lastName": "B"},
+        ])
+
+        result = await refresh_candidates(ghl=mock_ghl, batch_size=50)
+
+        assert len(result) == 2
+        ids = [c["ghl_contact_id"] for c in result]
+        assert ids == ["c-1", "c-2"]
+
+    @pytest.mark.asyncio
+    async def test_refresh_skips_contacts_without_email(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OUTPUTS_DIR", str(tmp_path))
+        monkeypatch.setenv("GHL_API_KEY", "test-key")
+        monkeypatch.setenv("GHL_LOCATION_ID", "loc-123")
+
+        (tmp_path / "ghl_followup_candidates.json").write_text(json.dumps({"candidates": []}))
+
+        mock_ghl = MagicMock()
+        mock_ghl.search_contacts = AsyncMock(return_value=[
+            {"id": "c-1", "email": "", "firstName": "No", "lastName": "Email"},
+            {"id": "c-2", "email": "has@email.com", "firstName": "Has", "lastName": "Email"},
+        ])
+
+        result = await refresh_candidates(ghl=mock_ghl, batch_size=50)
+
+        assert len(result) == 1
+        assert result[0]["ghl_contact_id"] == "c-2"
