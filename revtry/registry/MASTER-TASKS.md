@@ -369,11 +369,13 @@
   Record: Start date in `vault/integrations/heyreach.md`
   Note: Phase 4 LinkedIn dispatch gated on warmup_start + 28 days
 
-- [ ] **Task 31: Complete legacy vault migration** (HUMAN+AUTO)
-  Status: NOT_STARTED
+- [x] **Task 31: Complete legacy vault migration** (HUMAN+AUTO)
+  Status: DONE | Verified: 2026-03-11
   --> Depends on: `PHASE_0_TRIAGE_PASSED`
   Source: `revtry/migration/legacy_inventory.md`
-  Action: Migrate remaining legacy content, split `product_context.md` across 5 product vault files
+  Migration completed during Phase 0B (2026-03-07). All vault files populated with freshness metadata.
+  Verified: scoring_rules, tier_definitions, product split (5 files), email_angles all migrated.
+  GEMINI.md: architecture-only system prompt — no business rules to extract (N/A).
 
 - [~] **Task 32: First approved campaign batch** (HUMAN)
   Status: PARTIAL — GHL warm dispatch active; cold channels deferred
@@ -1072,6 +1074,73 @@
 
 ---
 
+## Phase 3G — Agentic Engineering Enhancements
+
+> **Goal**: Improve warm pipeline measurement, validation quality, and developer workflow
+> **Starts**: After `PHASE_3F_VERCEL_LIVE`
+> **Spec**: `docs/superpowers/specs/2026-03-11-phase-3g-agentic-enhancements-spec.md`
+
+### Batch 1: Runtime — Measurement Foundation
+
+- [ ] **Task 75: Capture human edit diffs on follow-up drafts** (AUTO)
+  Status: NOT_STARTED
+  --> Depends on: `PHASE_3F_VERCEL_LIVE`
+  Files: `src/dashboard/app.py` (L521), `src/models/schemas.py`, persistence layer
+  Metric: Edit rate (% of approved drafts that were edited)
+
+- [ ] **Task 76: Add storage-derived pipeline metrics to KPI tracker** (AUTO)
+  Status: NOT_STARTED
+  --> Depends on: `PHASE_3F_VERCEL_LIVE`
+  Files: `src/pipeline/kpi_tracker.py` (L25-38)
+  Metric: 6 new draft-lifecycle counts (generated, edited, approved, dispatched, rejected, approval_rate)
+
+- [ ] **Task 77: Shadow-log confidence on ConversationAnalysis** (AUTO)
+  Status: NOT_STARTED
+  --> Depends on: `PHASE_3F_VERCEL_LIVE`
+  Files: `src/models/schemas.py` (L359), `src/agents/conversation_analyst_agent.py`
+  Note: Shadow telemetry ONLY — no routing, filtering, or display changes
+
+### Batch 2: Slash-Command — Validation & Specification Quality
+
+- [ ] **Task 78: Output-only validation with evidence packets** (AUTO)
+  Status: NOT_STARTED
+  --> Depends on: Tasks 75-77
+  Files: `.claude/commands/validate.md`
+
+- [ ] **Task 79: Prompt contracts with complexity gate** (AUTO)
+  Status: NOT_STARTED
+  --> Depends on: Task 78
+  Files: `.claude/commands/plan-task.md`
+
+- [ ] **Task 80: Self-modifying candidate rules in /metabolize** (AUTO)
+  Status: NOT_STARTED
+  --> Depends on: Task 78
+  Files: `.claude/commands/metabolize.md`, `revtry/memory/candidate_rules.md` (new)
+
+### Batch 3: Runtime — Enhanced Retry
+
+- [ ] **Task 81: Feed gate failure context into existing retry** (AUTO)
+  Status: NOT_STARTED
+  --> Depends on: Tasks 75-77 (need metrics baseline)
+  Files: `src/pipeline/followup_orchestrator.py` (L342-363)
+
+### Batch 4: CLAUDE.md Token Audit
+
+- [ ] **Task 82: CLAUDE.md token audit and compaction-resilience** (AUTO)
+  Status: NOT_STARTED
+  --> Depends on: Tasks 75-77
+  Files: `Project-RevTry/CLAUDE.md`
+
+### Phase 3G Gates
+
+| Gate ID | Status | Depends On |
+|---------|--------|------------|
+| PHASE_3G_MEASUREMENT_BASELINE | NOT_STARTED | Tasks 75-77 |
+| PHASE_3G_SLASH_COMMANDS_ENHANCED | NOT_STARTED | Tasks 78-80 |
+| PHASE_3G_ENHANCED_RETRY | NOT_STARTED | Task 81 |
+
+---
+
 ## Phase 4 — Cold-Outbound Expansion
 
 > **Goal**: Reactivate Instantly cold email and HeyReach LinkedIn after warm path is validated and deployed
@@ -1215,7 +1284,7 @@ Task 3B   Live MCP discovery
 |---|---------|------|--------|
 | 1 | Dani receives prioritized GHL follow-up list | `PHASE_0_TRIAGE_PASSED` | PASSED |
 | 2 | 10+ real warm follow-up drafts approved in dashboard | `PHASE_1_FIRST_BATCH_APPROVED` | PARTIAL |
-| 3 | Daily warm follow-up briefing live on Vercel — Dani reviews AI-drafted follow-ups from phone | `PHASE_3F_VERCEL_LIVE` | IN_PROGRESS — dashboard deployed and accessible, pipeline data population pending |
+| 3 | Daily warm follow-up briefing live on Vercel — Dani reviews AI-drafted follow-ups from phone | `PHASE_3F_VERCEL_LIVE` | IN_PROGRESS — dashboard deployed, pipeline populated, Task 64 (Dani verification) pending |
 | 4 | First cold emails + LinkedIn touches dispatched at RAMP | `PHASE_4_COLD_ACTIVE` | NOT_STARTED |
 | 5 | Self-improving autonomous revenue pipeline — full autonomy earned | `PHASE_5_AUTONOMY_GRADUATED` | NOT_STARTED |
 
