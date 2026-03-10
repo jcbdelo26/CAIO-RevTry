@@ -215,6 +215,8 @@ Fail-fast rule:
 - Do not add remote deployment assumptions that depend on local file paths
 - Do not treat green tests as a substitute for runtime `Task 3B`
 - DnD/unsubscribed contacts must never reach `/followups` — filtered at scan time and at display time
+- The `/followups` queue must ONLY show contacts with drafts (`draftId is not None`). Analysis-only contacts are not actionable and must not appear in the queue
+- Draft generation must aim for >90% success rate. If Gate 3 Check 2 (conversation reference) rejects >10% of drafts, the matching logic is too strict and must be relaxed
 
 ## 8a. Post-Implementation Verification Protocol
 
@@ -242,7 +244,7 @@ python -m pytest tests -q
 ```
 
 Current baseline:
-- `362 passed`
+- `365 passed`
 - `29` test files
 
 ---

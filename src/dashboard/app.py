@@ -150,7 +150,7 @@ def _build_followup_detail_context(
     queue_item = _get_followup_queue_item_by_contact(contact_id, date=date)
     conversation = load_contact_conversation(contact_id)
     draft = draft or (queue_item["draft"] if queue_item else None) or _get_latest_followup_draft_for_contact(contact_id, date=date)
-    analysis = queue_item["analysis"] if queue_item else None
+    analysis = queue_item["analysis"] if queue_item else get_storage_backend().get_conversation_analysis(contact_id)
     summary = queue_item["summary"] if queue_item else conversation
     source_conversation_id = None
     if draft:

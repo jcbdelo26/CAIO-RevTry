@@ -97,6 +97,59 @@ def _resolve_queue_date(date: Optional[str], drafts: list[FollowUpDraft]) -> str
     return current_business_date()
 
 
+def _draft_or_fallback(draft, fallback_source, draft_attr: str, fallback_attr: str, default=""):
+    """Resolve a field from the draft first, then from a fallback source."""
+    if draft:
+        value = getattr(draft, draft_attr, None)
+        if value is not None:
+            return value
+    if fallback_source:
+        return getattr(fallback_source, fallback_attr, default)
+    return default
+
+
+def _build_queue_item(
+    *,
+    contact_id: str,
+    draft,
+    analysis,
+    summary,
+    primary_thread,
+    contact_name: str,
+    queue_date: str,
+) -> dict[str, Any]:
+    """Assemble a single queue item dict from draft/analysis/summary data."""
+    return {
+        "contactId": contact_id,
+        "ghlContactId": _draft_or_fallback(draft, summary, "ghl_contact_id", "ghl_contact_id"),
+        "contactName": contact_name,
+        "companyName": _draft_or_fallback(draft, summary, "company_name", "company_name"),
+        "contactEmail": _draft_or_fallback(draft, summary, "contact_email", "email"),
+        "draftId": draft.draft_id if draft else None,
+        "sourceConversationId": _draft_or_fallback(draft, analysis, "source_conversation_id", "source_conversation_id"),
+        "status": draft.status if draft else None,
+        "subject": draft.subject if draft else "",
+        "body": draft.body if draft else "",
+        "urgency": _draft_or_fallback(draft, analysis, "urgency", "urgency", default=None),
+        "sentiment": _draft_or_fallback(draft, analysis, "sentiment", "sentiment", default=None),
+        "stage": _draft_or_fallback(draft, analysis, "stage", "stage", default=None),
+        "trigger": _draft_or_fallback(draft, analysis, "trigger", "trigger", default=None),
+        "analysisSummary": (
+            draft.analysis_summary
+            if draft and draft.analysis_summary
+            else analysis.conversation_summary if analysis else ""
+        ),
+        "recommendedAction": analysis.recommended_action if analysis else "",
+        "daysSinceLastActivity": analysis.days_since_last_activity if analysis else 0,
+        "lastActivityAt": primary_thread.last_message_date if primary_thread else None,
+        "primaryThread": primary_thread,
+        "analysis": analysis,
+        "draft": draft,
+        "summary": summary,
+        "businessDate": draft.business_date if draft else queue_date,
+    }
+
+
 def load_followup_queue(date: Optional[str] = None) -> list[dict[str, Any]]:
     """Build the warm review queue by joining drafts, analyses, and conversations."""
     storage = get_storage_backend()
@@ -112,7 +165,8 @@ def load_followup_queue(date: Optional[str] = None) -> list[dict[str, Any]]:
     queue_date = _resolve_queue_date(date, all_drafts)
     drafts = [draft for draft in all_drafts if draft.business_date == queue_date]
     queue: list[dict[str, Any]] = []
-    contact_ids = sorted(set(analyses) | {draft.contact_id for draft in drafts})
+    # Only show contacts with drafts — analysis-only contacts are not actionable
+    contact_ids = sorted({draft.contact_id for draft in drafts})
     for contact_id in contact_ids:
         analysis = analyses.get(contact_id)
         summary = summaries.get(contact_id)
@@ -127,57 +181,15 @@ def load_followup_queue(date: Optional[str] = None) -> list[dict[str, Any]]:
         elif summary:
             contact_name = f"{summary.first_name} {summary.last_name}".strip()
 
-        queue.append(
-            {
-                "contactId": contact_id,
-                "ghlContactId": (
-                    draft.ghl_contact_id
-                    if draft
-                    else summary.ghl_contact_id if summary else ""
-                ),
-                "contactName": contact_name,
-                "companyName": (
-                    draft.company_name
-                    if draft
-                    else summary.company_name if summary else ""
-                ),
-                "contactEmail": (
-                    draft.contact_email
-                    if draft
-                    else summary.email if summary else ""
-                ),
-                "draftId": draft.draft_id if draft else None,
-                "sourceConversationId": (
-                    draft.source_conversation_id
-                    if draft
-                    else analysis.source_conversation_id if analysis else ""
-                ),
-                "status": draft.status if draft else None,
-                "subject": draft.subject if draft else "",
-                "body": draft.body if draft else "",
-                "urgency": draft.urgency if draft else analysis.urgency if analysis else None,
-                "sentiment": (
-                    draft.sentiment
-                    if draft
-                    else analysis.sentiment if analysis else None
-                ),
-                "stage": draft.stage if draft else analysis.stage if analysis else None,
-                "trigger": draft.trigger if draft else analysis.trigger if analysis else None,
-                "analysisSummary": (
-                    draft.analysis_summary
-                    if draft and draft.analysis_summary
-                    else analysis.conversation_summary if analysis else ""
-                ),
-                "recommendedAction": analysis.recommended_action if analysis else "",
-                "daysSinceLastActivity": analysis.days_since_last_activity if analysis else 0,
-                "lastActivityAt": primary_thread.last_message_date if primary_thread else None,
-                "primaryThread": primary_thread,
-                "analysis": analysis,
-                "draft": draft,
-                "summary": summary,
-                "businessDate": draft.business_date if draft else queue_date,
-            }
-        )
+        queue.append(_build_queue_item(
+            contact_id=contact_id,
+            draft=draft,
+            analysis=analysis,
+            summary=summary,
+            primary_thread=primary_thread,
+            contact_name=contact_name,
+            queue_date=queue_date,
+        ))
 
     # Defense-in-depth: remove DnD/unsubscribed contacts from queue display
     def _is_contactable(item: dict[str, Any]) -> bool:

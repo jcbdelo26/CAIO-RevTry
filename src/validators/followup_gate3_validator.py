@@ -16,8 +16,27 @@ COLD_OUTBOUND_PHRASES = frozenset({
 })
 
 
+def _find_thread(summary: ContactConversationSummary, source_conversation_id: str):
+    """Find the thread matching source_conversation_id, falling back to the primary thread."""
+    for candidate in summary.threads:
+        if candidate.conversation_id == source_conversation_id:
+            return candidate
+    return select_primary_thread(summary)
+
+
 def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower()).strip()
+
+
+_STOP_WORDS = frozenset({
+    "that", "with", "have", "from", "this", "been", "were",
+    "your", "they", "will", "just", "about", "would", "there",
+    "what", "when", "know", "like", "some", "also", "more",
+    "than", "them", "other", "into", "only", "over", "very",
+    "each", "made", "much", "such", "even", "back", "come",
+    "take", "good", "well", "same", "could", "should", "these",
+    "those", "here", "then", "does", "done", "want", "need",
+})
 
 
 def _body_mentions_conversation(
@@ -27,30 +46,36 @@ def _body_mentions_conversation(
 ) -> bool:
     body = _normalize(draft.body)
 
+    # Pass 1: exact topic substring (original behavior)
     for topic in analysis.key_topics:
         topic_norm = _normalize(topic)
         if topic_norm and topic_norm in body:
             return True
 
+    # Pass 2: fuzzy topic word matching — match if 2+ topic words appear in body
+    for topic in analysis.key_topics:
+        topic_words = [w for w in _normalize(topic).split() if len(w) >= 4 and w not in _STOP_WORDS]
+        if len(topic_words) >= 2:
+            matches = sum(1 for w in topic_words if w in body)
+            if matches >= 2:
+                return True
+        elif topic_words and topic_words[0] in body:
+            return True
+
     if summary is None:
         return False
 
-    thread = None
-    for candidate in summary.threads:
-        if candidate.conversation_id == draft.source_conversation_id:
-            thread = candidate
-            break
-    thread = thread or select_primary_thread(summary)
+    thread = _find_thread(summary, draft.source_conversation_id)
     if thread is None:
         return False
 
+    # Pass 3: 2-word message phrases (relaxed from 3)
     for message in compact_thread_messages(thread, max_messages=3, max_body_chars=160):
-        words = [word for word in re.findall(r"[a-zA-Z]{4,}", message.body.lower()) if word not in {"that", "with", "have", "from"}]
-        if not words:
-            continue
-        phrase = " ".join(words[:3]).strip()
-        if phrase and phrase in body:
-            return True
+        words = [word for word in re.findall(r"[a-zA-Z]{4,}", message.body.lower()) if word not in _STOP_WORDS]
+        if len(words) >= 2:
+            phrase = " ".join(words[:2]).strip()
+            if phrase and phrase in body:
+                return True
 
     return False
 

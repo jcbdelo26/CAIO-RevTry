@@ -162,6 +162,42 @@ class TestFollowupGate3:
         assert result.passed is False
         assert any("conversation reference missing" in failure for failure in result.failures)
 
+    def test_relaxed_topic_matching_fuzzy_word_order(self):
+        """'workflow automation' topic should match draft mentioning 'automation' and 'workflow' separately."""
+        draft = _build_valid_draft()
+        signatures = load_signatures()
+        # Body mentions topic words in different order/context
+        draft.body = (
+            "Jane,\n\n"
+            "Following up on the automation discussion — your workflow needs look like a great fit.\n\n"
+            "Reply here with your current timeline.\n\n"
+            f"{signatures.sender_name}\n"
+            f"{signatures.sender_title}\n\n"
+            f"{signatures.can_spam_footer}"
+        )
+
+        result = validate_followup_gate3([draft], analyses={"c-1": _build_analysis()}, summaries={"c-1": _build_summary()})
+
+        assert result.passed is True
+
+    def test_relaxed_topic_matching_two_word_phrase(self):
+        """2-word message phrase from thread should match in body."""
+        draft = _build_valid_draft()
+        signatures = load_signatures()
+        # Body includes 2-word phrase from the thread message "outline implementation"
+        draft.body = (
+            "Jane,\n\n"
+            "Happy to outline implementation details for your team.\n\n"
+            "Reply here if useful.\n\n"
+            f"{signatures.sender_name}\n"
+            f"{signatures.sender_title}\n\n"
+            f"{signatures.can_spam_footer}"
+        )
+
+        result = validate_followup_gate3([draft], analyses={"c-1": _build_analysis()}, summaries={"c-1": _build_summary()})
+
+        assert result.passed is True
+
     def test_cold_outbound_language_fails_gate3(self):
         draft = _build_valid_draft()
         draft.body = draft.body + "\n\nI came across your profile and wanted to reach out cold."

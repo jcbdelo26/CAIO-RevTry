@@ -311,22 +311,51 @@ async def run_followup_orchestrator(
             analyses_by_contact = {analysis.contact_id: analysis for analysis in actionable}
             summaries_by_contact = {summary.contact_id: summary for summary in summaries}
 
-            for draft in draft_result.drafts:
+            def _validate_draft(draft) -> tuple[bool, list[str]]:
+                """Run Gate 2 + Gate 3 validation on a single draft. Returns (passed, failures)."""
                 gate2 = validate_followup_gate2([draft])
-                gate3 = validate_followup_gate3(
-                    [draft],
-                    analyses_by_contact,
-                    summaries_by_contact,
-                )
+                gate3 = validate_followup_gate3([draft], analyses_by_contact, summaries_by_contact)
+                failures = gate2.failures + gate3.failures
+                return (gate2.passed and gate3.passed), failures
 
-                if gate2.passed and gate3.passed:
+            failed_contact_ids: list[str] = []
+            errors_by_contact: dict[str, list[str]] = {}
+            for draft in draft_result.drafts:
+                passed, failures = _validate_draft(draft)
+                if passed:
                     save_followup_draft(draft)
                     saved_count += 1
                     continue
 
+                failed_contact_ids.append(draft.contact_id)
+                errors_by_contact[draft.contact_id] = failures
                 validation_failed += 1
-                validation_errors.extend(gate2.failures)
-                validation_errors.extend(gate3.failures)
+
+            # Retry failed drafts once with conversation-grounding hint
+            retry_saved = 0
+            if failed_contact_ids:
+                retry_analyses = [a for a in actionable if a.contact_id in set(failed_contact_ids)]
+                if retry_analyses:
+                    trace.log_event("draft_retry_start", {"retrying": len(retry_analyses)})
+                    retry_result = await draft_batch(
+                        retry_analyses,
+                        summaries,
+                        client=anthropic_client,
+                        business_date=briefing_date,
+                        generation_run_id=f"{generation_run_id}-retry",
+                    )
+                    for draft in retry_result.drafts:
+                        passed, _failures = _validate_draft(draft)
+                        if passed:
+                            save_followup_draft(draft)
+                            retry_saved += 1
+                            validation_failed -= 1
+                            saved_count += 1
+                            errors_by_contact.pop(draft.contact_id, None)
+                    trace.log_event("draft_retry_complete", {"retrySaved": retry_saved, "retryFailed": len(retry_analyses) - retry_saved})
+
+            for errs in errors_by_contact.values():
+                validation_errors.extend(errs)
 
             trace.log_event(
                 "draft_validation_complete",

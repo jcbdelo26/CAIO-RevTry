@@ -344,9 +344,9 @@ class TestWarmDashboardRoutes:
         assert resp.status_code == 200
         assert "Warm Follow-Up Queue" in resp.text
         assert "Alex Morgan" in resp.text
-        assert "Jordan Lee" in resp.text
+        # Analysis-only contacts (no draft) should NOT appear in the queue
+        assert "Jordan Lee" not in resp.text
         assert "View Draft" in resp.text
-        assert "View Analysis" in resp.text
 
     def test_followup_detail_route(self, client, seeded_followups):
         resp = client.get(f"/followups/{seeded_followups}", follow_redirects=False)
@@ -413,9 +413,9 @@ class TestWarmDashboardRoutes:
         resp = client.get("/briefing")
         assert resp.status_code == 200
         assert "/followups/contact/contact-followup-1?date=2026-03-08" in resp.text
-        assert "/followups/contact/contact-followup-2?date=2026-03-08" in resp.text
+        # Analysis-only contacts (no draft) should NOT appear in queue/briefing
+        assert "/followups/contact/contact-followup-2?date=2026-03-08" not in resp.text
         assert "View Draft" in resp.text
-        assert "View Analysis" in resp.text
 
     def test_followup_edit_persists_pending_draft(self, client, seeded_followups):
         resp = client.post(

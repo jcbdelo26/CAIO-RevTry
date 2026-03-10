@@ -347,6 +347,42 @@ class TestBriefingLoader:
         assert queue[0]["draftId"] == "draft-new"
         assert queue[0]["businessDate"] == "2026-03-09"
 
+    def test_followup_queue_excludes_contacts_without_drafts(self, tmp_path):
+        """Contacts with analyses but no drafts must not appear in the queue."""
+        summary_with_draft = _build_summary("contact-with-draft")
+        summary_no_draft = _build_summary("contact-no-draft", conversation_id="conv-2")
+        for summary in [summary_with_draft, summary_no_draft]:
+            _write_indexed_model(
+                tmp_path,
+                "conversations",
+                summary.contact_id,
+                summary.model_dump(by_alias=True),
+            )
+
+        for contact_id, conv_id in [("contact-with-draft", "conv-1"), ("contact-no-draft", "conv-2")]:
+            analysis = _build_analysis(
+                contact_id,
+                urgency=UrgencyLevel.HOT,
+                trigger=FollowUpTrigger.AWAITING_OUR_RESPONSE,
+            )
+            if conv_id != "conv-1":
+                analysis = analysis.model_copy(update={"source_conversation_id": conv_id})
+            _write_indexed_model(
+                tmp_path,
+                "conversation_analysis",
+                analysis.contact_id,
+                analysis.model_dump(by_alias=True),
+            )
+
+        # Only save a draft for one contact
+        save_followup_draft(_build_draft("contact-with-draft"))
+
+        queue = load_followup_queue()
+
+        assert len(queue) == 1
+        assert queue[0]["contactId"] == "contact-with-draft"
+        assert queue[0]["draftId"] is not None
+
     def test_load_contact_conversation_returns_full_summary(self, tmp_path):
         summary = _build_summary("contact-1")
         _write_indexed_model(
