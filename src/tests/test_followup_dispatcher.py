@@ -21,7 +21,7 @@ from models.schemas import (
     UrgencyLevel,
 )
 from pipeline.circuit_breaker import CircuitBreaker
-from pipeline.followup_dispatcher import dispatch_approved_followups
+from pipeline.followup_dispatcher import dispatch_approved_followups, dispatch_single_draft
 from pipeline.rate_limiter import DailyRateLimiter
 
 
@@ -331,3 +331,82 @@ class TestFollowupDispatcher:
 
         assert result.dispatched == 0
         assert result.skipped_rate_limit == 1
+
+
+class TestDispatchSingleDraft:
+    @pytest.mark.asyncio
+    async def test_sends_and_marks_dispatched(self, tmp_path):
+        draft = _seed_approved_followup()
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock(return_value={"messageId": "msg-single-1"})
+        mock_ghl.close = AsyncMock()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        success, message = await dispatch_single_draft(
+            draft, rate_limiter=rl, circuit_breaker=cb, ghl=mock_ghl,
+        )
+
+        assert success is True
+        assert message == "dispatched"
+        stored = get_followup_draft(draft.draft_id)
+        assert stored is not None
+        assert stored.status == DraftApprovalStatus.DISPATCHED
+        assert stored.ghl_message_id == "msg-single-1"
+        mock_ghl.send_email.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_rate_limited_returns_false(self, tmp_path):
+        draft = _seed_approved_followup()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=1, state_path=tmp_path / "rl.json")
+        rl.record_send("ghl")
+
+        success, message = await dispatch_single_draft(
+            draft, rate_limiter=rl, circuit_breaker=cb,
+        )
+
+        assert success is False
+        assert message == "rate_limited"
+        stored = get_followup_draft(draft.draft_id)
+        assert stored is not None
+        assert stored.status == DraftApprovalStatus.APPROVED
+
+    @pytest.mark.asyncio
+    async def test_circuit_breaker_open_returns_false(self, tmp_path):
+        draft = _seed_approved_followup()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        cb.record_failure("ghl")
+        cb.record_failure("ghl")
+        cb.record_failure("ghl")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        success, message = await dispatch_single_draft(
+            draft, rate_limiter=rl, circuit_breaker=cb,
+        )
+
+        assert success is False
+        assert message == "circuit_breaker_open"
+
+    @pytest.mark.asyncio
+    async def test_send_failure_marks_failed_returns_false(self, tmp_path):
+        draft = _seed_approved_followup()
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock(side_effect=Exception("GHL timeout"))
+        mock_ghl.close = AsyncMock()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        success, message = await dispatch_single_draft(
+            draft, rate_limiter=rl, circuit_breaker=cb, ghl=mock_ghl,
+        )
+
+        assert success is False
+        assert "GHL timeout" in message
+        stored = get_followup_draft(draft.draft_id)
+        assert stored is not None
+        assert stored.status == DraftApprovalStatus.SEND_FAILED

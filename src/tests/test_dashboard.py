@@ -375,7 +375,8 @@ class TestWarmDashboardRoutes:
         resp = client.get("/followups/contact/missing-contact")
         assert resp.status_code == 404
 
-    def test_followup_approve_route(self, client, seeded_followups):
+    @patch("pipeline.followup_dispatcher.dispatch_single_draft", new_callable=AsyncMock, return_value=(True, "dispatched"))
+    def test_followup_approve_route(self, _mock_dispatch, client, seeded_followups):
         resp = client.post(
             f"/followups/{seeded_followups}/approve",
             follow_redirects=False,
@@ -398,7 +399,8 @@ class TestWarmDashboardRoutes:
         assert updated is not None
         assert updated.status == DraftApprovalStatus.REJECTED
 
-    def test_followup_batch_approve(self, client, seeded_followups):
+    @patch("pipeline.followup_dispatcher.dispatch_single_draft", new_callable=AsyncMock, return_value=(True, "dispatched"))
+    def test_followup_batch_approve(self, _mock_dispatch, client, seeded_followups):
         resp = client.post(
             "/followups/batch/approve",
             data={"draft_ids": seeded_followups},
@@ -409,7 +411,43 @@ class TestWarmDashboardRoutes:
         assert updated is not None
         assert updated.status == DraftApprovalStatus.APPROVED
 
-    def test_briefing_shows_live_draft_status_counts(self, client, seeded_followups):
+    @patch("pipeline.followup_dispatcher.dispatch_single_draft", new_callable=AsyncMock)
+    def test_approve_dispatches_immediately(self, mock_dispatch, client, seeded_followups):
+        mock_dispatch.return_value = (True, "dispatched")
+        resp = client.post(
+            f"/followups/{seeded_followups}/approve",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        mock_dispatch.assert_awaited_once()
+        draft_arg = mock_dispatch.call_args[0][0]
+        assert draft_arg.draft_id == seeded_followups
+
+    @patch("pipeline.followup_dispatcher.dispatch_single_draft", new_callable=AsyncMock)
+    def test_approve_succeeds_when_dispatch_fails(self, mock_dispatch, client, seeded_followups):
+        mock_dispatch.side_effect = Exception("GHL down")
+        resp = client.post(
+            f"/followups/{seeded_followups}/approve",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        updated = get_followup_draft(seeded_followups)
+        assert updated is not None
+        assert updated.status == DraftApprovalStatus.APPROVED
+
+    @patch("pipeline.followup_dispatcher.dispatch_single_draft", new_callable=AsyncMock)
+    def test_batch_approve_dispatches_each(self, mock_dispatch, client, seeded_followups):
+        mock_dispatch.return_value = (True, "dispatched")
+        resp = client.post(
+            "/followups/batch/approve",
+            data={"draft_ids": seeded_followups},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        mock_dispatch.assert_awaited_once()
+
+    @patch("pipeline.followup_dispatcher.dispatch_single_draft", new_callable=AsyncMock, return_value=(True, "dispatched"))
+    def test_briefing_shows_live_draft_status_counts(self, _mock_dispatch, client, seeded_followups):
         """Live draft status counts update when drafts are approved/rejected."""
         resp = client.get("/briefing")
         assert resp.status_code == 200

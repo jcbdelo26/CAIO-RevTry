@@ -42,7 +42,7 @@ Warm operator path: `/briefing` → `/followups` → approve/reject → `/dispat
 - Allowed: compacted primary-thread conversation context, signatures/compliance, minimal CTA/proof context
 - Not allowed: cold angle playbooks, broad ICP/campaign context, revenue-intel context
 
-**Approval rule**: No email is ever sent without explicit human approval. Approval changes draft state only — does not create GHL tasks or upsert contacts.
+**Approval rule**: No email is ever sent without explicit human approval. Approval triggers immediate dispatch through the full safety chain (circuit breaker → rate limiter → dedup). If dispatch fails, the draft stays APPROVED and the cron job retries.
 
 **Compatibility**: `GET /` stays backward-compatible in local mixed mode. `WARM_ONLY_MODE=true` redirects to `/briefing`.
 

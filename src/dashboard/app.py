@@ -379,8 +379,15 @@ async def batch_approve_followups(
     _: None = Depends(require_dashboard_auth),
 ):
     ids = [draft_id.strip() for draft_id in draft_ids.split(",") if draft_id.strip()]
+    dry_run = os.environ.get("DISPATCH_DRY_RUN", "").lower() in ("true", "1", "yes")
     for draft_id in ids:
-        approve_followup_draft(draft_id)
+        draft = approve_followup_draft(draft_id)
+        if draft:
+            try:
+                from pipeline.followup_dispatcher import dispatch_single_draft
+                await dispatch_single_draft(draft, dry_run=dry_run)
+            except Exception:
+                logger.exception("Immediate dispatch failed for %s — cron will retry", draft_id)
     return RedirectResponse(url="/followups", status_code=303)
 
 
@@ -570,6 +577,15 @@ async def approve_followup_endpoint(
     draft = approve_followup_draft(draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail="Follow-up draft not found")
+
+    # Send-on-approve: dispatch immediately through the full safety chain
+    dry_run = os.environ.get("DISPATCH_DRY_RUN", "").lower() in ("true", "1", "yes")
+    try:
+        from pipeline.followup_dispatcher import dispatch_single_draft
+        await dispatch_single_draft(draft, dry_run=dry_run)
+    except Exception:
+        logger.exception("Immediate dispatch failed for %s — cron will retry", draft_id)
+
     return RedirectResponse(url=f"/followups/contact/{draft.contact_id}?date={draft.business_date}", status_code=303)
 
 
