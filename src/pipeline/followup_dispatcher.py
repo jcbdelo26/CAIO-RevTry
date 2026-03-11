@@ -96,6 +96,7 @@ async def dispatch_approved_followups(
             continue
 
         try:
+            ghl_msg_id = None
             if dry_run:
                 logger.info(
                     "DRY_RUN dispatch: draft=%s contact=%s email=%s subject=%s body_len=%d",
@@ -109,7 +110,7 @@ async def dispatch_approved_followups(
                 if own_ghl and ghl is None:
                     ghl = GHLClient()
 
-                await circuit_breaker.call(
+                send_result = await circuit_breaker.call(
                     CHANNEL,
                     ghl.send_email,
                     contact_id=draft.ghl_contact_id,
@@ -117,8 +118,9 @@ async def dispatch_approved_followups(
                     subject=draft.subject,
                     body=draft.body,
                 )
+                ghl_msg_id = (send_result or {}).get("messageId")
 
-            mark_followup_dispatched(draft.draft_id, CHANNEL)
+            mark_followup_dispatched(draft.draft_id, CHANNEL, ghl_message_id=ghl_msg_id)
             rate_limiter.record_send(CHANNEL)
             draft_hash = compute_draft_hash(dedup_id, draft.subject, draft.body, CHANNEL)
             record_hash(draft_hash)

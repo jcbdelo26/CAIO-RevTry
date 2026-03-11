@@ -13,8 +13,9 @@ Phases: 0A-0B (foundation) → 1 (cold pipeline) → 2 (dispatch safety) → 3A-
 Current status:
 - **Vercel deployment live** at `caio-rev-try.vercel.app` (2026-03-10)
 - Warm generation, review, approval, dispatch, scheduler, auth, storage abstraction implemented
-- Vercel Cron Job: daily pipeline at 6 AM CT (`GET /api/cron/warm-pipeline`)
-- Test baseline: **379 passed** (2026-03-11)
+- Vercel Cron Job: daily pipeline + auto-dispatch at 6 AM CT (`GET /api/cron/warm-pipeline`)
+- On-demand dispatch: `GET /api/cron/dispatch` (CRON_SECRET auth, curl-triggered)
+- Test baseline: **384 passed** (2026-03-11)
 - Remaining: Task 64 (Dani verification) → Task 63A (live dispatch flip) → Phase 3G
 
 ---
@@ -58,7 +59,7 @@ Warm operator path: `/briefing` → `/followups` → approve/reject → `/dispat
 
 ## 5. Dashboard & Auth
 
-Key routes: `/healthz`, `/briefing`, `/followups`, `/followups/{id}`, `/dispatch`, `/api/cron/warm-pipeline`
+Key routes: `/healthz`, `/briefing`, `/followups`, `/followups/{id}`, `/dispatch`, `/api/cron/warm-pipeline`, `/api/cron/dispatch`
 - `DASHBOARD_AUTH_ENABLED=true` for deployed mode (HTTP Basic Auth)
 - `/healthz` stays open for smoke checks
 - `WARM_ONLY_MODE=true` blocks cold routes in deployed mode
@@ -126,7 +127,7 @@ Triggers: template changes, route handler changes, model changes affecting displ
 
 ## 11. Validation
 
-Run tests: `cd src && python -m pytest tests -q` — baseline: **379 passed**
+Run tests: `cd src && python -m pytest tests -q` — baseline: **384 passed**
 Full commands: `vault/operations/validation_commands.md`
 
 ---
@@ -136,6 +137,8 @@ Full commands: `vault/operations/validation_commands.md`
 **Phase 3F**: COMPLETE — `PHASE_3F_VERCEL_LIVE` PASSED (2026-03-11)
 - Task 64: DONE — Dani verified remote access, approved 5 drafts
 - Task 63A: DONE — `DISPATCH_DRY_RUN=false`, live dispatch active
+- Auto-dispatch: DONE — cron auto-dispatches APPROVED drafts; `/api/cron/dispatch` for on-demand
+- GHL links: DONE — dispatch history shows "View Thread" links to GHL conversations
 
 **Phase 3G** (NOW UNBLOCKED): Agentic enhancements (Tasks 75-82)
 - Spec: `docs/superpowers/specs/2026-03-11-phase-3g-agentic-enhancements-design.md`

@@ -451,13 +451,16 @@ def _verify_cron_secret(request: Request) -> None:
 async def cron_warm_pipeline(request: Request):
     """Vercel Cron Job endpoint — triggers daily warm follow-up pipeline.
 
+    Phase 1: Run generation orchestrator.
+    Phase 2: Auto-dispatch any APPROVED drafts immediately.
     Secured via CRON_SECRET Bearer token (set as Vercel env var).
     Runs at 12:00 UTC (6:00 AM CT) daily via vercel.json crons config.
     """
     _verify_cron_secret(request)
+    dry_run = os.environ.get("DISPATCH_DRY_RUN", "").lower() in ("true", "1", "yes")
 
     try:
-        result = await run_followup_orchestrator(
+        orchestrator_result = await run_followup_orchestrator(
             task_id="warm-followup-cron",
             force=False,
         )
@@ -465,7 +468,71 @@ async def cron_warm_pipeline(request: Request):
         logger.exception("Cron warm pipeline failed")
         return JSONResponse(status_code=500, content={"status": "error", "errors": ["Pipeline execution failed"]})
 
-    return JSONResponse(status_code=200, content=result)
+    dispatch_payload = None
+    try:
+        cb = CircuitBreaker()
+        rl = DailyRateLimiter()
+        warm = await dispatch_approved_followups(
+            rate_limiter=rl, circuit_breaker=cb, dry_run=dry_run,
+        )
+        dispatch_payload = {
+            "dispatched": warm.dispatched,
+            "skippedDedup": warm.skipped_dedup,
+            "skippedRateLimit": warm.skipped_rate_limit,
+            "skippedCircuitBreaker": warm.skipped_circuit_breaker,
+            "failed": warm.failed,
+            "errors": warm.errors,
+        }
+    except Exception:
+        logger.exception("Cron auto-dispatch failed")
+        dispatch_payload = {"status": "error", "errors": ["Auto-dispatch failed"]}
+
+    return JSONResponse(
+        status_code=200,
+        content={**orchestrator_result, "dispatch": dispatch_payload},
+    )
+
+
+@app.get("/api/cron/dispatch")
+async def cron_dispatch(request: Request):
+    """Dispatch-only cron endpoint — sends APPROVED warm drafts on demand.
+
+    Useful for immediate dispatch after manual approval without waiting
+    for the daily 6 AM CT pipeline run. Secured via CRON_SECRET Bearer token.
+    """
+    _verify_cron_secret(request)
+    dry_run = os.environ.get("DISPATCH_DRY_RUN", "").lower() in ("true", "1", "yes")
+
+    try:
+        cb = CircuitBreaker()
+        rl = DailyRateLimiter()
+        warm = await dispatch_approved_followups(
+            rate_limiter=rl, circuit_breaker=cb, dry_run=dry_run,
+        )
+    except MissingGhlCredentialsError as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "blocked_missing_ghl_credentials", "errors": [str(exc)]},
+        )
+    except Exception:
+        logger.exception("Cron dispatch failed")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "errors": ["Dispatch failed"]},
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "status": "ok",
+            "dispatched": warm.dispatched,
+            "skippedDedup": warm.skipped_dedup,
+            "skippedRateLimit": warm.skipped_rate_limit,
+            "skippedCircuitBreaker": warm.skipped_circuit_breaker,
+            "failed": warm.failed,
+            "errors": warm.errors,
+        },
+    )
 
 
 @app.get("/followups/{draft_id}", response_class=HTMLResponse)
@@ -769,6 +836,11 @@ async def dispatch_view(
             "kpi": snapshot,
             "load_error": load_error,
             "dry_run": dry_run,
+            "ghl_conversation_base": (
+                f"https://app.gohighlevel.com/v2/location/"
+                f"{os.environ.get('GHL_LOCATION_ID', '')}/conversations"
+                if os.environ.get("GHL_LOCATION_ID") else ""
+            ),
         },
     )
 

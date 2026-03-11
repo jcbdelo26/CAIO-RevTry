@@ -781,8 +781,9 @@ class TestCronWarmPipeline:
         )
         assert resp.status_code == 401
 
+    @patch("dashboard.app.dispatch_approved_followups", new_callable=AsyncMock)
     @patch("dashboard.app.run_followup_orchestrator", new_callable=AsyncMock)
-    def test_cron_triggers_pipeline_with_valid_secret(self, mock_orchestrator, client, monkeypatch):
+    def test_cron_triggers_pipeline_with_valid_secret(self, mock_orchestrator, mock_dispatch, client, monkeypatch):
         monkeypatch.setenv("CRON_SECRET", "valid-secret-123")
         mock_orchestrator.return_value = {
             "status": "complete",
@@ -790,6 +791,10 @@ class TestCronWarmPipeline:
             "saved": 5,
             "errors": [],
         }
+        mock_dispatch.return_value = AsyncMock(
+            dispatched=0, skipped_dedup=0, skipped_rate_limit=0,
+            skipped_circuit_breaker=0, failed=0, errors=[],
+        )
 
         resp = client.get(
             "/api/cron/warm-pipeline",
@@ -813,6 +818,57 @@ class TestCronWarmPipeline:
 
         assert resp.status_code == 500
         assert resp.json()["status"] == "error"
+
+    @patch("dashboard.app.dispatch_approved_followups", new_callable=AsyncMock)
+    @patch("dashboard.app.run_followup_orchestrator", new_callable=AsyncMock)
+    def test_cron_auto_dispatches_after_generation(self, mock_orchestrator, mock_dispatch, client, monkeypatch):
+        monkeypatch.setenv("CRON_SECRET", "valid-secret-123")
+        mock_orchestrator.return_value = {
+            "status": "complete",
+            "briefing_date": "2026-03-11",
+            "saved": 5,
+            "errors": [],
+        }
+        mock_dispatch.return_value = AsyncMock(
+            dispatched=5, skipped_dedup=0, skipped_rate_limit=0,
+            skipped_circuit_breaker=0, failed=0, errors=[],
+        )
+
+        resp = client.get(
+            "/api/cron/warm-pipeline",
+            headers={"Authorization": "Bearer valid-secret-123"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["status"] == "complete"
+        assert payload["dispatch"]["dispatched"] == 5
+        assert payload["dispatch"]["failed"] == 0
+        mock_dispatch.assert_awaited_once()
+
+    def test_cron_dispatch_endpoint_requires_secret(self, client):
+        resp = client.get("/api/cron/dispatch")
+        assert resp.status_code == 500
+
+    @patch("dashboard.app.dispatch_approved_followups", new_callable=AsyncMock)
+    def test_cron_dispatch_endpoint_dispatches_approved(self, mock_dispatch, client, monkeypatch):
+        monkeypatch.setenv("CRON_SECRET", "valid-secret-123")
+        mock_dispatch.return_value = AsyncMock(
+            dispatched=3, skipped_dedup=1, skipped_rate_limit=0,
+            skipped_circuit_breaker=0, failed=0, errors=[],
+        )
+
+        resp = client.get(
+            "/api/cron/dispatch",
+            headers={"Authorization": "Bearer valid-secret-123"},
+        )
+
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["status"] == "ok"
+        assert payload["dispatched"] == 3
+        assert payload["skippedDedup"] == 1
+        mock_dispatch.assert_awaited_once()
 
 
 class TestDashboardAuthAndWarmOnly:

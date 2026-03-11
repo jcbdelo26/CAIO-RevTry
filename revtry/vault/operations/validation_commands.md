@@ -23,5 +23,5 @@ Get-ChildItem -Path src -Recurse -Filter *.py | ForEach-Object { python -m py_co
 
 ## Current Baseline
 
-- **379 passed** (as of 2026-03-11)
+- **384 passed** (as of 2026-03-11)
 - 29+ test files

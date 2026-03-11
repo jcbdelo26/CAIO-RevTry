@@ -121,6 +121,18 @@ class TestFollowupStorage:
         assert dispatched.status == DraftApprovalStatus.DISPATCHED
         assert dispatched.dispatched_at is not None
 
+    def test_mark_followup_dispatched_stores_ghl_message_id(self):
+        draft = _build_draft()
+        save_followup_draft(draft)
+
+        dispatched = mark_followup_dispatched(draft.draft_id, "ghl", ghl_message_id="msg-xyz-99")
+
+        assert dispatched is not None
+        assert dispatched.ghl_message_id == "msg-xyz-99"
+        reloaded = get_followup_draft(draft.draft_id)
+        assert reloaded is not None
+        assert reloaded.ghl_message_id == "msg-xyz-99"
+
     def test_mark_followup_send_failed(self):
         draft = _build_draft()
         save_followup_draft(draft)

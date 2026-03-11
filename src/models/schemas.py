@@ -400,6 +400,7 @@ class FollowUpDraft(BaseModel):
     dispatched_at: Optional[str] = Field(None, alias="dispatchedAt")
     send_failed_at: Optional[str] = Field(None, alias="sendFailedAt")
     dispatch_error: Optional[str] = Field(None, alias="dispatchError")
+    ghl_message_id: Optional[str] = Field(None, alias="ghlMessageId")
     edited_at: Optional[str] = Field(None, alias="editedAt")
 
     model_config = {"populate_by_name": True}

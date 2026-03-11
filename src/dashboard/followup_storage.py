@@ -90,6 +90,7 @@ def reject_followup_draft(
 def mark_followup_dispatched(
     draft_id: str,
     channel: str,
+    ghl_message_id: Optional[str] = None,
 ) -> Optional[FollowUpDraft]:
     """Mark a warm follow-up draft as DISPATCHED after confirmed send success."""
     draft = get_followup_draft(draft_id)
@@ -99,6 +100,8 @@ def mark_followup_dispatched(
     draft.status = DraftApprovalStatus.DISPATCHED
     draft.dispatched_at = datetime.now(timezone.utc).isoformat()
     draft.dispatch_error = None
+    if ghl_message_id:
+        draft.ghl_message_id = ghl_message_id
     save_followup_draft(draft)
     return draft
 

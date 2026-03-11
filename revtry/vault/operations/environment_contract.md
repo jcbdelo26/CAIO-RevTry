@@ -8,7 +8,7 @@
 | Variable | Required | Default | Notes |
 |----------|----------|---------|-------|
 | `GHL_API_KEY` | Yes | — | GHL API access |
-| `GHL_LOCATION_ID` | Yes | — | GHL location scope |
+| `GHL_LOCATION_ID` | Yes | — | GHL location scope + dispatch history GHL links |
 | `ANTHROPIC_API_KEY` | Yes | — | Claude API for analysis + drafting |
 | `APOLLO_API_KEY` | No | — | Cold enrichment (Phase 4) |
 | `VAULT_DIR` | No | auto-detected | Path to `revtry/vault/` |

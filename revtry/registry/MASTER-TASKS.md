@@ -1050,6 +1050,13 @@
   Dani approved 5 drafts remotely. User flipped DISPATCH_DRY_RUN=false on Vercel and redeployed.
   Live dispatch is now active — approved drafts will send real emails via GHL.
 
+- [x] **Task 63B: Auto-dispatch + GHL conversation links** (AUTO)
+  Status: DONE | Completed: 2026-03-11
+  --> Depends on: Task 63A
+  Cron auto-dispatches APPROVED drafts after generation. New `/api/cron/dispatch` endpoint for on-demand dispatch via curl.
+  GHL `messageId` captured from send response and stored on drafts. Dispatch history shows "View Thread" links to GHL conversations.
+  Tests: 384 passed (+5 new tests).
+
 - [x] **Task 64: Dani remote access verification** (HUMAN)
   Status: DONE | Completed: 2026-03-11
   --> Depends on: Task 63

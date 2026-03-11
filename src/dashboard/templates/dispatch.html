@@ -141,6 +141,7 @@
                 <th>Channel</th>
                 <th>Dispatched At</th>
                 <th>Status</th>
+                <th>GHL</th>
             </tr>
         </thead>
         <tbody>
@@ -156,6 +157,11 @@
                     {% else %}
                     <span class="badge badge-approved">SENT</span>
                     {% endif %}
+                </td>
+                <td>
+                    {% if ghl_conversation_base and d.source_conversation_id %}
+                    <a href="{{ ghl_conversation_base }}/{{ d.source_conversation_id }}" target="_blank" rel="noopener">View Thread</a>
+                    {% else %}—{% endif %}
                 </td>
             </tr>
             {% endfor %}

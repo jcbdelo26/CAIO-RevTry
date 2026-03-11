@@ -103,6 +103,25 @@ class TestFollowupDispatcher:
         assert kwargs["to_email"] == "alex@acme.com"
 
     @pytest.mark.asyncio
+    async def test_dispatched_draft_stores_ghl_message_id(self, tmp_path):
+        draft = _seed_approved_followup()
+        mock_ghl = MagicMock()
+        mock_ghl.send_email = AsyncMock(return_value={"messageId": "msg-captured-1", "status": "sent"})
+        mock_ghl.close = AsyncMock()
+
+        cb = CircuitBreaker(state_path=tmp_path / "cb.json")
+        rl = DailyRateLimiter(daily_limit=5, state_path=tmp_path / "rl.json")
+
+        result = await dispatch_approved_followups(
+            rate_limiter=rl, circuit_breaker=cb, ghl=mock_ghl,
+        )
+
+        stored = get_followup_draft(draft.draft_id)
+        assert result.dispatched == 1
+        assert stored is not None
+        assert stored.ghl_message_id == "msg-captured-1"
+
+    @pytest.mark.asyncio
     async def test_dispatch_uses_latest_saved_subject_and_body(self, tmp_path):
         draft = _seed_approved_followup()
         latest = get_followup_draft(draft.draft_id)
