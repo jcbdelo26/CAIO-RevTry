@@ -1,6 +1,6 @@
 # PRD — RevTry: Revenue Operations Sentry
 ## ChiefAIOfficer.com
-**Version**: 2.13 | **Date**: 2026-03-10 | **Status**: Phase 3F Hardening Validated — Real Pipeline Population Pending
+**Version**: 2.14 | **Date**: 2026-03-11 | **Status**: Phase 3F Pipeline Populated — Dani Verification Pending; Phase 3G Planned
 **Refined by**: Greenfield Coding Workflow bulletproofing process
 **Source**: `E:\CAIO RevOps Claw\RevTry_PRD.md` v1.0
 
@@ -45,7 +45,7 @@ This build now uses one authoritative project/runtime root.
 
 **Phase 0A hard gate:** Hero Outcome 1 is blocked until the external GHL MCP exposes the read capabilities required for audit and triage. No PRD section may assume audit or triage is runnable before Phase 0A passes.
 
-**Immediate operational priority now:** Hero Outcome 1 is operationally complete. With `PHASE_0A_MCP_VERIFIED_LIVE = PASSED`, `PHASE_0B_WORKSPACE_READY = PASSED`, and `PHASE_0_TRIAGE_PASSED = PASSED`, the current same-day path is `Task 62D -> Task 63 -> Task 64 -> Task 32`. Phase 3F remains the active path until real warm drafts are generated, reviewed remotely, and approved.
+**Immediate operational priority now:** Hero Outcome 1 is operationally complete. Tasks 62D and 63 are DONE. The current path is `Task 64 (Dani verification) -> Task 63A (live dispatch flip)`. After PHASE_3F_VERCEL_LIVE, Phase 3G agentic engineering enhancements begin (Tasks 75-82). Spec: `docs/superpowers/specs/2026-03-11-phase-3g-agentic-enhancements-spec.md`
 
 **Known inconsistency:** The external `manifest.json` may advertise fewer tools than `server.py` documents. Treat live discovery as the ONLY source of truth for tool availability and behavior. Treat `server.py` as the authoritative entrypoint path. Do not treat the manifest tool list as complete.
 
@@ -269,6 +269,7 @@ Entity-level schemas spanning the system. Agent-specific JSON output schemas are
 | summary | string | Compact summary of the primary thread only |
 | keyTopics | string[] | Extracted topics used downstream for drafting |
 | recommendedAction | string | Recommended next step if a draft should be created |
+| confidence | float 0.0-1.0\|null | Shadow telemetry; not used for routing until calibrated. Added Phase 3G. |
 
 ### Follow-Up Draft
 *(Warm follow-up draft stored separately from cold campaign drafts)*
@@ -291,6 +292,7 @@ Entity-level schemas spanning the system. Agent-specific JSON output schemas are
 | rejectionNote | string\|null | Dani feedback for warm drafts |
 | approvalTimestamp | ISO8601\|null | |
 | analysisSummary | string | Short analysis carry-forward for UI and debugging |
+| editDiff | object\|null | `{"subject": {"before", "after"}, "body": {"before", "after"}}` — captured on edit. Added Phase 3G. |
 
 ### Daily Briefing
 *(One per warm run date)*
@@ -767,6 +769,29 @@ Log pattern in vault/feedback/agent_learnings.md
 - [x] Deployed mode runs with HTTP Basic Auth, `WARM_ONLY_MODE=true`, and Postgres persistence
 - [ ] No cold-flow dependency is required for the first deployed warm MVP
 - [x] `GET /healthz` performs a real DB probe in postgres mode and returns `db=connected` or `status=degraded`
+
+### Phase 3G — Agentic Engineering Enhancements
+
+**Goal:** Improve warm pipeline measurement, validation quality, and developer workflow based on agentic engineering patterns. Full spec: `docs/superpowers/specs/2026-03-11-phase-3g-agentic-enhancements-spec.md`
+
+**Deliverables:**
+- Human edit-diff capture on follow-up draft edits
+- Storage-derived pipeline metrics (6 new draft-lifecycle counts)
+- Shadow confidence scoring on ConversationAnalysis (telemetry only)
+- Output-only validation with evidence packets in `/validate`
+- Prompt contracts with complexity gate in `/plan-task`
+- Self-modifying candidate rules in `/metabolize` (shadow mode)
+- Enhanced retry with gate failure context in warm orchestrator
+- CLAUDE.md token audit for compaction resilience
+
+**Acceptance Criteria:**
+- [ ] Edit-diff field populated when Dani edits a draft
+- [ ] KPI tracker outputs 6 new draft-lifecycle metrics
+- [ ] ConversationAnalysis includes shadow confidence float (no behavioral changes)
+- [ ] `/validate` enforces output-only review with evidence packets
+- [ ] `/plan-task` complexity gate skips contracts for routine tasks
+- [ ] `/metabolize` produces candidate rules in shadow mode
+- [ ] All existing tests pass with no regressions
 
 ### Phase 4 — Cold-Outbound Expansion
 

@@ -836,9 +836,9 @@ async def dispatch_view(
             "kpi": snapshot,
             "load_error": load_error,
             "dry_run": dry_run,
-            "ghl_conversation_base": (
+            "ghl_contact_base": (
                 f"https://app.gohighlevel.com/v2/location/"
-                f"{os.environ.get('GHL_LOCATION_ID', '')}/conversations"
+                f"{os.environ.get('GHL_LOCATION_ID', '')}/contacts/detail"
                 if os.environ.get("GHL_LOCATION_ID") else ""
             ),
         },

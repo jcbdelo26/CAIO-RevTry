@@ -159,8 +159,8 @@
                     {% endif %}
                 </td>
                 <td>
-                    {% if ghl_conversation_base and d.source_conversation_id %}
-                    <a href="{{ ghl_conversation_base }}/{{ d.source_conversation_id }}" target="_blank" rel="noopener">View Thread</a>
+                    {% if ghl_contact_base and d.ghl_contact_id %}
+                    <a href="{{ ghl_contact_base }}/{{ d.ghl_contact_id }}" target="_blank" rel="noopener">View Contact</a>
                     {% else %}—{% endif %}
                 </td>
             </tr>
