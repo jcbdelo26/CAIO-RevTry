@@ -1044,23 +1044,17 @@
   - 375 tests passing including 3 new dry-run tests
   - Non-functional Re-Generate/Refresh buttons removed from /briefing (commit 7a88481)
 
-- [ ] **Task 63A: Transition from dry-run to live dispatch** (HUMAN)
-  Status: NOT_STARTED
+- [x] **Task 63A: Transition from dry-run to live dispatch** (HUMAN)
+  Status: DONE | Completed: 2026-03-11
   --> Depends on: Task 64
-  Action: After Dani confirms dashboard access (Task 64), flip DISPATCH_DRY_RUN=false on Vercel to enable live email sending
-  Gate: Dani must explicitly approve the transition from dry-run to live dispatch
-  Steps:
-  1. Set DISPATCH_DRY_RUN=true on Vercel env vars (safety default)
-  2. Dani E2E tests approve/edit/dispatch flow in dry-run mode
-  3. Dani explicitly approves live sending
-  4. Flip DISPATCH_DRY_RUN=false and redeploy
+  Dani approved 5 drafts remotely. User flipped DISPATCH_DRY_RUN=false on Vercel and redeployed.
+  Live dispatch is now active — approved drafts will send real emails via GHL.
 
-- [ ] **Task 64: Dani remote access verification** (HUMAN)
-  Status: NOT_STARTED
+- [x] **Task 64: Dani remote access verification** (HUMAN)
+  Status: DONE | Completed: 2026-03-11
   --> Depends on: Task 63
-  Action: Dani confirms she can access the warm dashboard via Vercel URL, review and approve a test follow-up draft
-  Gate: Sets `PHASE_3F_VERCEL_LIVE`
-  Note: Task 63 is complete. Dani can now test the full approve/edit/dispatch flow with DISPATCH_DRY_RUN=true enabled.
+  Dani accessed `caio-rev-try.vercel.app` remotely, reviewed warm follow-up drafts, and approved 5 contacts.
+  Gate: Sets `PHASE_3F_VERCEL_LIVE` → PASSED
 
 ### Phase 3F Gates
 
@@ -1070,7 +1064,7 @@
 | PHASE_3F_CODE_HARDENED | PASSED | Tasks 62A-62C |
 | PHASE_3F_CANDIDATE_SOURCE_READY | PASSED | Task 62D0 |
 | PHASE_3F_PIPELINE_POPULATED | PASSED | Task 62D — real data visible on dashboard |
-| PHASE_3F_VERCEL_LIVE | NOT_STARTED | Tasks 62-64 (HUMAN) |
+| PHASE_3F_VERCEL_LIVE | PASSED (2026-03-11) | Tasks 62-64 — Dani verified remote access, approved 5 drafts, live dispatch enabled |
 
 ---
 
@@ -1291,7 +1285,7 @@ Task 3B   Live MCP discovery
 |---|---------|------|--------|
 | 1 | Dani receives prioritized GHL follow-up list | `PHASE_0_TRIAGE_PASSED` | PASSED |
 | 2 | 10+ real warm follow-up drafts approved in dashboard | `PHASE_1_FIRST_BATCH_APPROVED` | PARTIAL |
-| 3 | Daily warm follow-up briefing live on Vercel — Dani reviews AI-drafted follow-ups from phone | `PHASE_3F_VERCEL_LIVE` | IN_PROGRESS — dashboard deployed, pipeline populated, Task 64 (Dani verification) pending |
+| 3 | Daily warm follow-up briefing live on Vercel — Dani reviews AI-drafted follow-ups from phone | `PHASE_3F_VERCEL_LIVE` | PASSED (2026-03-11) — Dani verified, 5 drafts approved, live dispatch active |
 | 4 | First cold emails + LinkedIn touches dispatched at RAMP | `PHASE_4_COLD_ACTIVE` | NOT_STARTED |
 | 5 | Self-improving autonomous revenue pipeline — full autonomy earned | `PHASE_5_AUTONOMY_GRADUATED` | NOT_STARTED |
 

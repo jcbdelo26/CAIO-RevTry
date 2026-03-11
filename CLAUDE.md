@@ -133,14 +133,18 @@ Full commands: `vault/operations/validation_commands.md`
 
 ## 12. Current Next Steps
 
-**Phase 3F** (blocking):
-- Task 64: NOT_STARTED — Dani remote access verification → sets `PHASE_3F_VERCEL_LIVE`
-- Task 63A: NOT_STARTED — flip `DISPATCH_DRY_RUN=false` after Dani approves
+**Phase 3F**: COMPLETE — `PHASE_3F_VERCEL_LIVE` PASSED (2026-03-11)
+- Task 64: DONE — Dani verified remote access, approved 5 drafts
+- Task 63A: DONE — `DISPATCH_DRY_RUN=false`, live dispatch active
 
-**Phase 3G** (after 3F): Agentic enhancements (Tasks 75-82)
+**Phase 3G** (NOW UNBLOCKED): Agentic enhancements (Tasks 75-82)
 - Spec: `docs/superpowers/specs/2026-03-11-phase-3g-agentic-enhancements-design.md`
+- Batch 1 (Tasks 75-77): Measurement foundation — edit diffs, KPI metrics, confidence logging
+- Batch 2 (Tasks 78-80): Slash command enhancements
+- Batch 3 (Task 81): Enhanced retry with failure context
+- Task 82: DONE — CLAUDE.md token audit
 
 **Critical safety rules**:
-- NEVER send real emails without explicit human approval
+- No email is sent without explicit human approval (approval changes draft state only)
 - Phase 3G enhancements must not destabilize the warm pipeline
-- DISPATCH_DRY_RUN must remain `true` until Task 64 passes and Dani approves live dispatch
+- Live dispatch active — send safety chain enforced: circuit breaker → rate limiter → dedup → approval
