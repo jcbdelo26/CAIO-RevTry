@@ -42,6 +42,7 @@ Return a single JSON object with exactly these keys:
 - keyTopics: array of short strings
 - recommendedAction: concise action recommendation for the next follow-up
 - conversationSummary: 1-2 sentence factual summary grounded only in the provided thread
+- confidence: float 0.0-1.0 representing your confidence in the analysis quality. 1.0 = strong CRM signal, clear conversation context. 0.0 = sparse data, ambiguous signals.
 
 Rules:
 - Do not fabricate facts, meetings, offers, or objections not present in the thread.
@@ -164,6 +165,14 @@ def _normalize_analysis_payload(
     )
     urgency = payload.get("urgency") or _default_urgency(trigger, days_since_last_activity).value
 
+    confidence = payload.get("confidence")
+    if confidence is not None:
+        try:
+            confidence = float(confidence)
+            confidence = max(0.0, min(1.0, confidence))
+        except (TypeError, ValueError):
+            confidence = None
+
     normalized = {
         "contactId": summary.contact_id,
         "sourceConversationId": source_conversation_id,
@@ -177,6 +186,7 @@ def _normalize_analysis_payload(
         "conversationSummary": conversation_summary,
         "daysSinceLastActivity": days_since_last_activity,
         "analyzedAt": analyzed_at,
+        "confidence": confidence,
     }
     return ConversationAnalysis.model_validate(normalized)
 

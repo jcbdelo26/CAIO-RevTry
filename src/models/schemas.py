@@ -371,6 +371,7 @@ class ConversationAnalysis(BaseModel):
     conversation_summary: str = Field(..., alias="conversationSummary")
     days_since_last_activity: int = Field(0, alias="daysSinceLastActivity")
     analyzed_at: str = Field(..., alias="analyzedAt")
+    confidence: Optional[float] = None
 
     model_config = {"populate_by_name": True}
 
