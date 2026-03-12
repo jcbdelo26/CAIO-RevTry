@@ -403,6 +403,7 @@ class FollowUpDraft(BaseModel):
     dispatch_error: Optional[str] = Field(None, alias="dispatchError")
     ghl_message_id: Optional[str] = Field(None, alias="ghlMessageId")
     edited_at: Optional[str] = Field(None, alias="editedAt")
+    edit_diff: Optional[dict] = Field(None, alias="editDiff")
 
     model_config = {"populate_by_name": True}
 

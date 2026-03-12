@@ -700,6 +700,9 @@ async def edit_followup_endpoint(
             back_label="Back to Follow-Ups",
         )
 
+    original_subject = draft.subject
+    original_body = draft.body
+
     updated = draft.model_copy(deep=True)
     updated.subject = subject.strip()
     updated.body = body.strip().replace("\r\n", "\n")
@@ -740,6 +743,15 @@ async def edit_followup_endpoint(
         updated.rejection_reason = None
         updated.send_failed_at = None
         updated.dispatch_error = None
+
+    # only the most recent edit is retained; no-op saves clear the diff
+    if updated.subject != original_subject or updated.body != original_body:
+        updated.edit_diff = {
+            "subject": {"before": original_subject, "after": updated.subject},
+            "body": {"before": original_body, "after": updated.body},
+        }
+    else:
+        updated.edit_diff = None
 
     updated.edited_at = datetime.now(timezone.utc).isoformat()
     try:
