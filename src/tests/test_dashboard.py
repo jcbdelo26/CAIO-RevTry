@@ -99,7 +99,7 @@ def _valid_followup_edit_body(prefix: str = "Updated subject") -> str:
         "Dani Apgar\n"
         "Head of Sales, Chief AI Officer\n"
         "Reply STOP to unsubscribe.\n"
-        "Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109"
+        "Chief AI Officer LLC | 2021 Guadalupe Street, Suite 260, Austin, Texas 78705"
     )
 
 

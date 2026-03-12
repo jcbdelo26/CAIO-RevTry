@@ -54,6 +54,7 @@
             <td>
                 <div><strong>{{ item.contactName or item.contactId }}</strong></div>
                 <div style="color:#666; font-size:0.85em;">{{ item.companyName or item.contactEmail }}</div>
+                {% if item.hasActiveSales %}<span class="badge badge-active-deal" style="margin-left:6px;font-size:0.7em;">Active Deal</span>{% endif %}
             </td>
             <td>
                 {% if item.status %}

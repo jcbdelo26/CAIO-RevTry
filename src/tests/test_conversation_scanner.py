@@ -15,6 +15,7 @@ from scripts.ghl_conversation_scanner import (
     _parse_messages,
     compact_thread_messages,
     filter_eligible_summaries,
+    has_recent_manual_outbound,
     has_valid_email,
     is_dnd_or_unsubscribed,
     load_candidates,
@@ -22,6 +23,7 @@ from scripts.ghl_conversation_scanner import (
     scan_all_contacts,
     scan_contact,
     select_primary_thread,
+    MAX_MESSAGES_PER_CONVERSATION,
 )
 
 
@@ -673,15 +675,16 @@ class TestWarmEligibilityHelpers:
         no_email = await scan_contact(mock_ghl, {"ghl_contact_id": "c-2", "email": ""}, scan_days=30)
         eligible = await scan_contact(mock_ghl, {"ghl_contact_id": "c-3", "email": "ok@test.com"}, scan_days=30)
 
-        filtered, skipped_no_conversation, skipped_no_email, skipped_dnd = filter_eligible_summaries(
+        result = filter_eligible_summaries(
             [no_conversation, no_email, eligible]  # type: ignore[list-item]
         )
 
-        assert len(filtered) == 1
-        assert filtered[0].contact_id == "c-3"
-        assert skipped_no_conversation == 1
-        assert skipped_no_email == 1
-        assert skipped_dnd == 0
+        assert len(result.eligible) == 1
+        assert result.eligible[0].contact_id == "c-3"
+        assert result.skipped_no_conversation == 1
+        assert result.skipped_no_email == 1
+        assert result.skipped_dnd == 0
+        assert result.skipped_active_sales == 0
 
 
 class TestDndFiltering:
@@ -740,15 +743,16 @@ class TestDndFiltering:
         dnd_contact = self._make_summary(contact_id="dnd-1", dnd=True)
         unsub_contact = self._make_summary(contact_id="unsub-1", tags=["opted-out"])
 
-        filtered, skip_conv, skip_email, skip_dnd = filter_eligible_summaries(
+        result = filter_eligible_summaries(
             [clean, dnd_contact, unsub_contact]
         )
 
-        assert len(filtered) == 1
-        assert filtered[0].contact_id == "clean-1"
-        assert skip_dnd == 2
-        assert skip_conv == 0
-        assert skip_email == 0
+        assert len(result.eligible) == 1
+        assert result.eligible[0].contact_id == "clean-1"
+        assert result.skipped_dnd == 2
+        assert result.skipped_no_conversation == 0
+        assert result.skipped_no_email == 0
+        assert result.skipped_active_sales == 0
 
     @pytest.mark.asyncio
     async def test_scan_contact_populates_dnd_and_tags(self):
@@ -860,3 +864,138 @@ class TestRefreshCandidates:
 
         assert len(result) == 1
         assert result[0]["ghl_contact_id"] == "c-2"
+
+
+class TestUserIdCapture:
+    """Tests for userId field on ConversationMessage."""
+
+    def test_parse_messages_captures_user_id(self):
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        raw = [{"id": "m-1", "dateAdded": datetime.now(timezone.utc).isoformat(), "direction": "outbound", "body": "Hi", "userId": "user-abc"}]
+        messages = _parse_messages(raw, "conv-1", cutoff)
+        assert len(messages) == 1
+        assert messages[0].user_id == "user-abc"
+
+    def test_parse_messages_user_id_defaults_none(self):
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+        raw = [{"id": "m-1", "dateAdded": datetime.now(timezone.utc).isoformat(), "direction": "outbound", "body": "Hi"}]
+        messages = _parse_messages(raw, "conv-1", cutoff)
+        assert len(messages) == 1
+        assert messages[0].user_id is None
+
+
+class TestActiveSalesExclusion:
+    """Tests for has_recent_manual_outbound and active sales filtering."""
+
+    def _make_summary(self, contact_id="c-1", messages=None, dnd=False, tags=None):
+        ts = datetime.now(timezone.utc).isoformat()
+        if messages is None:
+            messages = [ConversationMessage(
+                messageId="m-1", conversationId="conv-1", direction="inbound",
+                body="Hello", timestamp=ts, messageType="Email",
+            )]
+        return ContactConversationSummary(
+            contactId=contact_id, ghlContactId=contact_id, firstName="Test",
+            lastName="Contact", email=f"{contact_id}@test.com", companyName="TestCo",
+            title="", threads=[ConversationThread(
+                conversationId="conv-1", contactId=contact_id,
+                lastMessageDate=ts, messageCount=len(messages), messages=messages,
+            )], totalMessages=len(messages), lastInboundDate=ts,
+            lastOutboundDate=None, scannedAt=ts, dnd=dnd, tags=tags or [],
+        )
+
+    def test_has_recent_manual_outbound_true(self):
+        recent_ts = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        msg = ConversationMessage(
+            messageId="m-1", conversationId="conv-1", direction="outbound",
+            body="Following up", timestamp=recent_ts, messageType="Email", userId="sales-user-1",
+        )
+        summary = self._make_summary(messages=[msg])
+        assert has_recent_manual_outbound(summary, frozenset({"sales-user-1"})) is True
+
+    def test_has_recent_manual_outbound_false_old_message(self):
+        old_ts = (datetime.now(timezone.utc) - timedelta(days=20)).isoformat()
+        msg = ConversationMessage(
+            messageId="m-1", conversationId="conv-1", direction="outbound",
+            body="Old msg", timestamp=old_ts, messageType="Email", userId="sales-user-1",
+        )
+        summary = self._make_summary(messages=[msg])
+        assert has_recent_manual_outbound(summary, frozenset({"sales-user-1"})) is False
+
+    def test_has_recent_manual_outbound_false_unknown_user(self):
+        recent_ts = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        msg = ConversationMessage(
+            messageId="m-1", conversationId="conv-1", direction="outbound",
+            body="Hi", timestamp=recent_ts, messageType="Email", userId="other-user",
+        )
+        summary = self._make_summary(messages=[msg])
+        assert has_recent_manual_outbound(summary, frozenset({"sales-user-1"})) is False
+
+    def test_has_recent_manual_outbound_false_empty_ids(self):
+        recent_ts = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        msg = ConversationMessage(
+            messageId="m-1", conversationId="conv-1", direction="outbound",
+            body="Hi", timestamp=recent_ts, messageType="Email", userId="sales-user-1",
+        )
+        summary = self._make_summary(messages=[msg])
+        assert has_recent_manual_outbound(summary, frozenset()) is False
+
+    def test_has_recent_manual_outbound_inbound_ignored(self):
+        recent_ts = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        msg = ConversationMessage(
+            messageId="m-1", conversationId="conv-1", direction="inbound",
+            body="Hi", timestamp=recent_ts, messageType="Email", userId="sales-user-1",
+        )
+        summary = self._make_summary(messages=[msg])
+        assert has_recent_manual_outbound(summary, frozenset({"sales-user-1"})) is False
+
+    def test_filter_eligible_summaries_does_not_skip_active_sales(self):
+        recent_ts = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+        active_msg = ConversationMessage(
+            messageId="m-1", conversationId="conv-1", direction="outbound",
+            body="Following up", timestamp=recent_ts, messageType="Email", userId="sales-user-1",
+        )
+        active_summary = self._make_summary(contact_id="active-1", messages=[active_msg])
+        clean_summary = self._make_summary(contact_id="clean-1")
+
+        result = filter_eligible_summaries(
+            [active_summary, clean_summary],
+            sales_user_ids=frozenset({"sales-user-1"}),
+        )
+
+        assert len(result.eligible) == 2
+        assert {s.contact_id for s in result.eligible} == {"active-1", "clean-1"}
+        assert result.skipped_active_sales == 0
+
+
+class TestMessageCap:
+    """Tests for per-conversation message cap in scan_contact."""
+
+    @pytest.mark.asyncio
+    async def test_scan_contact_caps_messages_per_conversation(self):
+        """Verify that scan_contact stores at most MAX_MESSAGES_PER_CONVERSATION messages per thread."""
+        num_messages = MAX_MESSAGES_PER_CONVERSATION + 10
+        now = datetime.now(timezone.utc)
+        raw_messages = [
+            {
+                "id": f"m-{i}",
+                "dateAdded": (now - timedelta(hours=i)).isoformat(),
+                "direction": "outbound",
+                "body": f"Message {i}",
+            }
+            for i in range(num_messages)
+        ]
+
+        mock_ghl = MagicMock()
+        mock_ghl.get_contact = AsyncMock(return_value={"contact": {"dnd": False, "tags": []}})
+        mock_ghl.search_conversations = AsyncMock(return_value={"conversations": [{"id": "conv-1"}]})
+        mock_ghl.get_messages = AsyncMock(return_value={"messages": raw_messages})
+
+        summary = await scan_contact(mock_ghl, {"ghl_contact_id": "c-1", "email": "a@test.com"}, scan_days=90)
+
+        assert summary is not None
+        assert len(summary.threads) == 1
+        # Messages on thread should be capped
+        assert len(summary.threads[0].messages) == MAX_MESSAGES_PER_CONVERSATION
+        # But message_count should reflect the full set
+        assert summary.threads[0].message_count == num_messages

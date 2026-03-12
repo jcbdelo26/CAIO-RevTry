@@ -1286,6 +1286,33 @@ Task 3B   Live MCP discovery
 
 ---
 
+- [x] **Task 83: Active Sales Exclusion, Extended Scan Window & CAN-SPAM Update** (AUTO)
+  - **Completed**: 2026-03-12
+  - **Files modified**: schemas.py, ghl_conversation_scanner.py, followup_orchestrator.py, conversation_analyst_agent.py, briefing_loader.py, briefing.html, vault_loader.py, signatures.md, environment_contract.md, + 6 test files
+  - **Changes**:
+    1. Active sales exclusion: contacts with manual outbound from sales team (`SALES_TEAM_USER_IDS`) excluded from warm queue (reverted in Task 84)
+    2. Scan window extended from 30 → 90 days (`FOLLOWUP_SCAN_DAYS`), 20-message cap per conversation (`MAX_MESSAGES_PER_CONVERSATION`)
+    3. CAN-SPAM footer updated to Austin TX address (Chief AI Officer LLC)
+    4. `filter_eligible_summaries()` returns `FilterResult` NamedTuple (was 4-tuple)
+    5. `ConversationMessage` gains `user_id` field; `DailyBriefing` gains `contactsSkippedActiveSales`
+  - **Tests**: 10 new tests added to test_conversation_scanner.py; 400 total passing
+
+---
+
+- [x] **Task 84: Active Sales Exclusion → Active Deal Badge + Pipeline Simplification** (AUTO)
+  - **Completed**: 2026-03-12
+  - **Files modified**: ghl_conversation_scanner.py, briefing_loader.py, followup_orchestrator.py, conversation_analyst_agent.py, base.html, briefing.html, followup_list.html, test_conversation_scanner.py, PRD.md, CLAUDE.md, environment_contract.md, MASTER-TASKS.md
+  - **Changes**:
+    1. Removed hard sales-team exclusion from `filter_eligible_summaries()` — active sales contacts now stay in the warm queue
+    2. Added "Active Deal" badge computed at display time in `briefing_loader.py` using `has_recent_manual_outbound()`
+    3. Removed redundant `filter_eligible_summaries()` call from `scan_all_contacts()` and `followup_orchestrator.py` (was called 3x, now 1x in `analyze_batch`)
+    4. Simplified `analyze_summary()` guard from `is_summary_eligible()` to direct `has_valid_email()` check
+    5. Added `.badge-active-deal` CSS class and badge rendering in briefing + followup_list templates
+    6. Updated sources of truth: PRD, CLAUDE.md, environment_contract, MASTER-TASKS
+  - **Tests**: 400 total passing; renamed `test_filter_eligible_summaries_skips_active_sales` → `test_filter_eligible_summaries_does_not_skip_active_sales`
+
+---
+
 ## Hero Outcomes
 
 | # | Outcome | Gate | Status |

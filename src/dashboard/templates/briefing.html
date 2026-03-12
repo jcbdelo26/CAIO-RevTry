@@ -66,6 +66,7 @@
         <div style="display:grid; gap:8px;">
             <div><strong>No Conversation</strong>: {{ briefing.contacts_skipped_no_conversation }}</div>
             <div><strong>No Email</strong>: {{ briefing.contacts_skipped_no_email }}</div>
+            <div><strong>Active Deals (tagged)</strong>: {{ briefing.contacts_skipped_active_sales }}</div>
             <div><strong>Analysis Failed</strong>: {{ briefing.analysis_failed_count }}</div>
             <div><strong>Draft Failed</strong>: {{ briefing.draft_failed_count }}</div>
             <div><strong>Estimated Cost</strong>: ${{ "%.2f"|format(briefing.estimated_cost_usd) }}</div>
@@ -96,6 +97,7 @@
                 <td>
                     <div><strong>{{ item.contactName or item.contactId }}</strong></div>
                     <div style="color:#666; font-size:0.85em;">{{ item.companyName or item.contactEmail }}</div>
+                    {% if item.hasActiveSales %}<span class="badge badge-active-deal" style="margin-left:6px;font-size:0.7em;">Active Deal</span>{% endif %}
                 </td>
                 <td>
                     {% if item.status %}

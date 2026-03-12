@@ -25,7 +25,7 @@ from persistence.factory import get_storage_backend
 from scripts.ghl_conversation_scanner import (
     compact_thread_messages,
     filter_eligible_summaries,
-    is_summary_eligible,
+    has_valid_email,
     select_primary_thread,
 )
 
@@ -61,6 +61,7 @@ class AnalysisBatchResult:
     skipped_no_conversation: int = 0
     skipped_no_email: int = 0
     skipped_dnd: int = 0
+    skipped_active_sales: int = 0
 
 def _parse_timestamp(value: str | None) -> Optional[datetime]:
     if not value:
@@ -191,7 +192,7 @@ async def analyze_summary(
     reference_time: Optional[datetime] = None,
 ) -> Optional[ConversationAnalysis]:
     """Analyze one eligible conversation summary into a warm follow-up classification."""
-    if not is_summary_eligible(summary):
+    if not has_valid_email(summary.email):
         return None
 
     reference_time = reference_time or datetime.now(timezone.utc)
@@ -256,11 +257,13 @@ async def analyze_batch(
 ) -> AnalysisBatchResult:
     """Analyze a batch of summaries with per-contact failure isolation."""
     result = AnalysisBatchResult()
-    eligible, skipped_no_conversation, skipped_no_email, skipped_dnd = filter_eligible_summaries(summaries)
+    filter_result = filter_eligible_summaries(summaries)
+    eligible = filter_result.eligible
     result.skipped = len(summaries) - len(eligible)
-    result.skipped_no_conversation = skipped_no_conversation
-    result.skipped_no_email = skipped_no_email
-    result.skipped_dnd = skipped_dnd
+    result.skipped_no_conversation = filter_result.skipped_no_conversation
+    result.skipped_no_email = filter_result.skipped_no_email
+    result.skipped_dnd = filter_result.skipped_dnd
+    result.skipped_active_sales = filter_result.skipped_active_sales
 
     if not eligible:
         return result

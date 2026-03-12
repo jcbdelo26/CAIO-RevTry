@@ -19,7 +19,7 @@ Head of Sales, Chief AI Officer
 
 ```
 Reply STOP to unsubscribe.
-Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109
+Chief AI Officer LLC | 2021 Guadalupe Street, Suite 260, Austin, Texas 78705
 ```
 
 ## Booking Link

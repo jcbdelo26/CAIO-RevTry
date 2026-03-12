@@ -30,7 +30,6 @@ from models.schemas import ContactConversationSummary, ConversationAnalysis, Dai
 from persistence.factory import get_storage_backend
 from pipeline.circuit_breaker import CircuitBreaker
 from scripts.ghl_conversation_scanner import (
-    filter_eligible_summaries,
     load_candidates,
     scan_all_contacts,
 )
@@ -98,6 +97,7 @@ def _build_briefing(
     saved_count: int,
     skipped_no_conversation: int,
     skipped_no_email: int,
+    skipped_active_sales: int = 0,
     analysis_failed_count: int,
     draft_failed_count: int,
     estimated_cost_usd: float,
@@ -111,6 +111,7 @@ def _build_briefing(
         contactsNeedingFollowup=len(actionable_analyses),
         contactsSkippedNoConversation=skipped_no_conversation,
         contactsSkippedNoEmail=skipped_no_email,
+        contactsSkippedActiveSales=skipped_active_sales,
         hotCount=urgency_counts.get("hot", 0),
         warmCount=urgency_counts.get("warm", 0),
         coolingCount=urgency_counts.get("cooling", 0),
@@ -187,6 +188,7 @@ async def run_followup_orchestrator(
             saved_count=0,
             skipped_no_conversation=0,
             skipped_no_email=0,
+            skipped_active_sales=0,
             analysis_failed_count=0,
             draft_failed_count=0,
             estimated_cost_usd=0.0,
@@ -252,24 +254,24 @@ async def run_followup_orchestrator(
                 "briefing_path": None,
                 "errors": [str(exc)],
             }
-        eligible_summaries, skipped_no_conversation, skipped_no_email, skipped_dnd = filter_eligible_summaries(summaries)
-        trace.log_event(
-            "conversation_scan_complete",
-            {
-                "candidates": len(candidates),
-                "summaries": len(summaries),
-                "eligible": len(eligible_summaries),
-                "skippedNoConversation": skipped_no_conversation,
-                "skippedNoEmail": skipped_no_email,
-                "skippedDnd": skipped_dnd,
-            },
-        )
         trace.log_tool_call("ghl_conversation_scan")
 
         analysis_result = await analyze_batch(
             summaries,
             client=anthropic_client,
             reference_time=reference_time,
+        )
+        trace.log_event(
+            "conversation_scan_complete",
+            {
+                "candidates": len(candidates),
+                "summaries": len(summaries),
+                "eligible": len(analysis_result.analyses) + analysis_result.failed,
+                "skippedNoConversation": analysis_result.skipped_no_conversation,
+                "skippedNoEmail": analysis_result.skipped_no_email,
+                "skippedDnd": analysis_result.skipped_dnd,
+                "skippedActiveSales": analysis_result.skipped_active_sales,
+            },
         )
         trace.log_event(
             "analysis_complete",
@@ -373,7 +375,7 @@ async def run_followup_orchestrator(
                 },
             )
 
-        estimated_cost_usd = _estimated_cost_usd(len(eligible_summaries), len(actionable))
+        estimated_cost_usd = _estimated_cost_usd(len(analysis_result.analyses) + analysis_result.failed, len(actionable))
         briefing = _build_briefing(
             briefing_date=briefing_date,
             generated_at=reference_time.isoformat(),
@@ -383,6 +385,7 @@ async def run_followup_orchestrator(
             saved_count=saved_count,
             skipped_no_conversation=analysis_result.skipped_no_conversation,
             skipped_no_email=analysis_result.skipped_no_email,
+            skipped_active_sales=analysis_result.skipped_active_sales,
             analysis_failed_count=analysis_result.failed,
             draft_failed_count=draft_result.failed + validation_failed,
             estimated_cost_usd=estimated_cost_usd,
@@ -408,7 +411,7 @@ async def run_followup_orchestrator(
             "briefing_path": str(saved_briefing),
             "candidates_loaded": len(candidates),
             "scanned": len(summaries),
-            "eligible": len(eligible_summaries),
+            "eligible": len(analysis_result.analyses) + analysis_result.failed,
             "skipped_no_conversation": analysis_result.skipped_no_conversation,
             "skipped_no_email": analysis_result.skipped_no_email,
             "analyzed": len(analysis_result.analyses),

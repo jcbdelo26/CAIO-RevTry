@@ -46,7 +46,7 @@ def _make_draft(**overrides) -> CampaignDraft:
             "Dani Apgar\n"
             "Head of Sales, Chief AI Officer\n\n"
             "Reply STOP to unsubscribe.\n"
-            "Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109"
+            "Chief AI Officer LLC | 2021 Guadalupe Street, Suite 260, Austin, Texas 78705"
         ),
         channel=Channel.GHL,
         bookingLink=BOOKING_LINK,
@@ -209,7 +209,7 @@ class TestGate2:
                 f"Book a time here: {BOOKING_LINK}\n\n"
                 "Dani Apgar\nHead of Sales, Chief AI Officer\n\n"
                 "Reply STOP to unsubscribe.\n"
-                "Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109"
+                "Chief AI Officer LLC | 2021 Guadalupe Street, Suite 260, Austin, Texas 78705"
             )
         )
         output = _make_campaign_output(drafts=[draft])
@@ -277,7 +277,7 @@ class TestGate3:
             body=(
                 f"Hi there,\n\nGreat opportunity.\n\n{BOOKING_LINK}\n\n"
                 "Reply STOP to unsubscribe.\n"
-                "Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109"
+                "Chief AI Officer LLC | 2021 Guadalupe Street, Suite 260, Austin, Texas 78705"
             )
         )
         output = _make_campaign_output(drafts=[draft])

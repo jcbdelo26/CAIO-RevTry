@@ -13,7 +13,13 @@ from models.schemas import (
     FollowUpDraft,
 )
 from persistence.factory import get_storage_backend
-from scripts.ghl_conversation_scanner import filter_eligible_summaries, is_dnd_or_unsubscribed, select_primary_thread
+from scripts.ghl_conversation_scanner import (
+    filter_eligible_summaries,
+    has_recent_manual_outbound,
+    is_dnd_or_unsubscribed,
+    select_primary_thread,
+    _load_sales_team_user_ids,
+)
 from utils.business_time import current_business_date
 
 
@@ -65,16 +71,20 @@ def load_daily_briefing(date: Optional[str] = None) -> DailyBriefing:
     analyses = storage.list_conversation_analyses()
     drafts = storage.list_followup_drafts(business_date=briefing_date, latest_only=not bool(date))
 
-    _, skipped_no_conversation, skipped_no_email, _ = filter_eligible_summaries(summaries)
+    filter_result = filter_eligible_summaries(summaries)
     urgency_counts = _urgency_counts(analyses)
     trigger_counts = _trigger_counts(analyses)
+
+    sales_user_ids = _load_sales_team_user_ids()
+    tagged_active_sales = sum(1 for s in summaries if has_recent_manual_outbound(s, sales_user_ids))
 
     return DailyBriefing(
         date=briefing_date,
         totalContactsScanned=len(summaries),
         contactsNeedingFollowup=len(analyses),
-        contactsSkippedNoConversation=skipped_no_conversation,
-        contactsSkippedNoEmail=skipped_no_email,
+        contactsSkippedNoConversation=filter_result.skipped_no_conversation,
+        contactsSkippedNoEmail=filter_result.skipped_no_email,
+        contactsSkippedActiveSales=tagged_active_sales,
         hotCount=urgency_counts["hot"],
         warmCount=urgency_counts["warm"],
         coolingCount=urgency_counts["cooling"],
@@ -117,6 +127,7 @@ def _build_queue_item(
     primary_thread,
     contact_name: str,
     queue_date: str,
+    is_active_sales: bool = False,
 ) -> dict[str, Any]:
     """Assemble a single queue item dict from draft/analysis/summary data."""
     return {
@@ -147,6 +158,7 @@ def _build_queue_item(
         "draft": draft,
         "summary": summary,
         "businessDate": draft.business_date if draft else queue_date,
+        "hasActiveSales": is_active_sales,
     }
 
 
@@ -165,6 +177,7 @@ def load_followup_queue(date: Optional[str] = None) -> list[dict[str, Any]]:
     queue_date = _resolve_queue_date(date, all_drafts)
     drafts = [draft for draft in all_drafts if draft.business_date == queue_date]
     queue: list[dict[str, Any]] = []
+    sales_user_ids = _load_sales_team_user_ids()
     # Only show contacts with drafts — analysis-only contacts are not actionable
     contact_ids = sorted({draft.contact_id for draft in drafts})
     for contact_id in contact_ids:
@@ -181,6 +194,8 @@ def load_followup_queue(date: Optional[str] = None) -> list[dict[str, Any]]:
         elif summary:
             contact_name = f"{summary.first_name} {summary.last_name}".strip()
 
+        is_active_sales = has_recent_manual_outbound(summary, sales_user_ids) if summary else False
+
         queue.append(_build_queue_item(
             contact_id=contact_id,
             draft=draft,
@@ -189,6 +204,7 @@ def load_followup_queue(date: Optional[str] = None) -> list[dict[str, Any]]:
             primary_thread=primary_thread,
             contact_name=contact_name,
             queue_date=queue_date,
+            is_active_sales=is_active_sales,
         ))
 
     # Defense-in-depth: remove DnD/unsubscribed contacts from queue display

@@ -20,7 +20,8 @@
 | `DASHBOARD_BASIC_AUTH_USER` | Conditional | — | Required when auth enabled |
 | `DASHBOARD_BASIC_AUTH_PASS` | Conditional | — | Required when auth enabled |
 | `DAILY_SCAN_BATCH_SIZE` | No | `50` | Max contacts per pipeline run |
-| `FOLLOWUP_SCAN_DAYS` | No | `30` | Conversation lookback window |
+| `FOLLOWUP_SCAN_DAYS` | No | `90` | Conversation lookback window |
+| `SALES_TEAM_USER_IDS` | No | — | Comma-separated GHL user IDs for Active Deal badge tagging |
 | `SCHEDULER_ENABLED` | No | `false` | Start APScheduler on boot |
 | `SCHEDULER_TIMEZONE` | No | `America/Chicago` | Cron timezone |
 | `DISPATCH_DRY_RUN` | No | `false` | Log dispatch payload without sending |

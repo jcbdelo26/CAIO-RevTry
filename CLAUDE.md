@@ -106,7 +106,8 @@ Full contract: `vault/operations/environment_contract.md`
 ## 9. DnD & Contact Filtering
 
 - DnD/unsubscribed contacts must **never** reach `/followups`
-- Filtered at **two layers**: scan time (`ghl_conversation_scanner`) AND display time (`briefing_loader`)
+- Contacts with recent manual outbound from sales team (`SALES_TEAM_USER_IDS`) are **tagged with an "Active Deal" badge** at display time, not excluded
+- DnD filtering at **scan time** (`ghl_conversation_scanner.filter_eligible_summaries`); Active Deal badge computed at **display time** (`briefing_loader`)
 - The `/followups` queue shows ONLY contacts with drafts (`draftId is not None`)
 - Analysis-only contacts are not actionable and must not appear in the queue
 - Reference: `vault/guardrails/hard_blocks.md`

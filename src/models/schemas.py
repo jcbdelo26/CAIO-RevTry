@@ -321,6 +321,7 @@ class ConversationMessage(BaseModel):
     subject: Optional[str] = None
     timestamp: str
     message_type: str = Field("Email", alias="messageType")
+    user_id: Optional[str] = Field(None, alias="userId")
 
     model_config = {"populate_by_name": True}
 
@@ -421,6 +422,7 @@ class DailyBriefing(BaseModel):
     contacts_needing_followup: int = Field(0, alias="contactsNeedingFollowup")
     contacts_skipped_no_conversation: int = Field(0, alias="contactsSkippedNoConversation")
     contacts_skipped_no_email: int = Field(0, alias="contactsSkippedNoEmail")
+    contacts_skipped_active_sales: int = Field(0, alias="contactsSkippedActiveSales")
     hot_count: int = Field(0, alias="hotCount")
     warm_count: int = Field(0, alias="warmCount")
     cooling_count: int = Field(0, alias="coolingCount")

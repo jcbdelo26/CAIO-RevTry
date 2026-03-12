@@ -16,7 +16,7 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 from integrations.ghl_client import GHLClient
 from models.schemas import (
@@ -28,11 +28,12 @@ from persistence.factory import get_storage_backend
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SCAN_DAYS = 30
+DEFAULT_SCAN_DAYS = 90
 DEFAULT_BATCH_SIZE = 50
 INTER_CONTACT_DELAY = 0.5  # seconds between contacts
 MAX_COMPACT_MESSAGES = 8
 MAX_MESSAGE_BODY_CHARS = 500
+MAX_MESSAGES_PER_CONVERSATION = 20
 
 
 def _outputs_dir() -> Path:
@@ -261,6 +262,7 @@ def _parse_messages(
             subject=msg.get("subject"),
             timestamp=ts,
             messageType=_normalize_message_type(msg.get("type", "Email")),
+            userId=msg.get("userId"),
         ))
 
     return messages
@@ -320,14 +322,59 @@ def is_summary_eligible(summary: ContactConversationSummary) -> bool:
     )
 
 
+DEFAULT_ACTIVE_SALES_DAYS = 14
+
+
+def _load_sales_team_user_ids() -> frozenset[str]:
+    raw = os.environ.get("SALES_TEAM_USER_IDS", "").strip()
+    if not raw:
+        return frozenset()
+    return frozenset(uid.strip() for uid in raw.split(",") if uid.strip())
+
+
+def has_recent_manual_outbound(
+    summary: ContactConversationSummary,
+    sales_user_ids: frozenset[str],
+    days: int = DEFAULT_ACTIVE_SALES_DAYS,
+) -> bool:
+    """Return True if a sales team member manually messaged this contact within `days` days."""
+    if not sales_user_ids:
+        return False
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    for thread in summary.threads:
+        for msg in thread.messages:
+            if msg.direction != "outbound":
+                continue
+            if msg.user_id not in sales_user_ids:
+                continue
+            msg_time = _parse_timestamp(msg.timestamp)
+            if msg_time and msg_time >= cutoff:
+                return True
+    return False
+
+
+class FilterResult(NamedTuple):
+    eligible: list[ContactConversationSummary]
+    skipped_no_conversation: int
+    skipped_no_email: int
+    skipped_dnd: int
+    skipped_active_sales: int
+
+
 def filter_eligible_summaries(
     summaries: list[ContactConversationSummary],
-) -> tuple[list[ContactConversationSummary], int, int, int]:
+    *,
+    sales_user_ids: frozenset[str] | None = None,
+) -> FilterResult:
     """Split conversation summaries into eligible warm-analysis inputs and tracked skips."""
     eligible: list[ContactConversationSummary] = []
     skipped_no_conversation = 0
     skipped_no_email = 0
     skipped_dnd = 0
+    skipped_active_sales = 0
+
+    if sales_user_ids is None:
+        sales_user_ids = _load_sales_team_user_ids()
 
     for summary in summaries:
         if is_dnd_or_unsubscribed(summary):
@@ -341,7 +388,7 @@ def filter_eligible_summaries(
             continue
         eligible.append(summary)
 
-    return eligible, skipped_no_conversation, skipped_no_email, skipped_dnd
+    return FilterResult(eligible, skipped_no_conversation, skipped_no_email, skipped_dnd, skipped_active_sales)
 
 
 async def scan_contact(
@@ -403,15 +450,21 @@ async def scan_contact(
                 if last_outbound is None or msg.timestamp > last_outbound:
                     last_outbound = msg.timestamp
 
-        # Sort messages newest first
-        messages.sort(key=lambda m: m.timestamp, reverse=True)
+        # Sort messages newest first (by parsed datetime for timezone safety)
+        messages.sort(
+            key=lambda m: _parse_timestamp(m.timestamp) or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+
+        # Cap stored messages per conversation; metadata was computed from full set above
+        capped_messages = messages[:MAX_MESSAGES_PER_CONVERSATION]
 
         threads.append(ConversationThread(
             conversationId=conv_id,
             contactId=contact_id,
             lastMessageDate=messages[0].timestamp if messages else "",
             messageCount=len(messages),
-            messages=messages,
+            messages=capped_messages,
         ))
         all_messages.extend(messages)
 
@@ -468,16 +521,7 @@ async def scan_all_contacts(
         if own_ghl:
             await ghl.close()
 
-    eligible, skipped_no_conversation, skipped_no_email, skipped_dnd = filter_eligible_summaries(summaries)
-    logger.info(
-        "Scanned %d contacts, %d summaries, %d eligible, %d skipped no conversation, %d skipped no email, %d skipped dnd",
-        len(candidates),
-        len(summaries),
-        len(eligible),
-        skipped_no_conversation,
-        skipped_no_email,
-        skipped_dnd,
-    )
+    logger.info("Scanned %d contacts, %d summaries produced", len(candidates), len(summaries))
     return summaries
 
 

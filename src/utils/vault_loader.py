@@ -408,7 +408,7 @@ def load_signatures() -> Signatures:
         sender_title="Head of Sales, Chief AI Officer",
         can_spam_footer=(
             "Reply STOP to unsubscribe.\n"
-            "Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109"
+            "Chief AI Officer LLC | 2021 Guadalupe Street, Suite 260, Austin, Texas 78705"
         ),
         booking_link="https://caio.cx/ai-exec-briefing-call",
         banned_openers=[

@@ -120,7 +120,8 @@ Enable a two-person GTM team to operate a staged, approval-gated Revenue Operati
 - `FEEDBACK_LOOP_POLICY_ENABLED` — (optional) enables dynamic GUARD-004 banned opener updates
 - `ANTHROPIC_API_KEY` — required for Phase 3B/3C conversation analysis + follow-up drafting
 - `DAILY_SCAN_BATCH_SIZE` — canonical max contacts scanned per warm run
-- `FOLLOWUP_SCAN_DAYS` — lookback window for conversation scanning
+- `FOLLOWUP_SCAN_DAYS` — lookback window for conversation scanning (default: 90 days)
+- `SALES_TEAM_USER_IDS` — (optional) comma-separated GHL user IDs; contacts with recent manual outbound from these users are tagged with an "Active Deal" badge in the dashboard (not excluded)
 - `SCHEDULER_ENABLED` — enables Phase 3E scheduler when set to `true`
 - `SCHEDULER_TIMEZONE` — default `America/Chicago`
 - `MAX_SCAN_CONTACTS` — deprecated alias for `DAILY_SCAN_BATCH_SIZE` during Phase 3A transition only
@@ -641,7 +642,8 @@ Log pattern in vault/feedback/agent_learnings.md
 
 **Acceptance Criteria:**
 - [ ] Only contacts with `totalMessages > 0`, valid email, and a deterministic primary thread are eligible downstream
-- [ ] Zero-message and no-email contacts are skipped before any LLM call and counted in `DailyBriefing`
+- [ ] Contacts with manual outbound from configured sales team members (`SALES_TEAM_USER_IDS`) are tagged with an "Active Deal" badge in the dashboard and remain in the warm queue
+- [ ] Zero-message and no-email contacts are skipped before any LLM call and counted in `DailyBriefing`; active-sales contacts are tagged, not excluded
 - [ ] Primary-thread rule is deterministic: newest `lastMessageDate` wins
 - [ ] Prompt compaction rule is fixed: latest 8 messages from the primary thread, reordered chronologically, trimmed before prompt assembly
 
@@ -1695,7 +1697,7 @@ Head of Sales, Chief AI Officer
 **CAN-SPAM Footer (include verbatim in every email):**
 ```
 Reply STOP to unsubscribe.
-Chief AI Officer Inc. | 5700 Harper Dr, Suite 210, Albuquerque, NM 87109
+Chief AI Officer LLC | 2021 Guadalupe Street, Suite 260, Austin, Texas 78705
 ```
 
 **Booking Link:** `https://caio.cx/ai-exec-briefing-call`
