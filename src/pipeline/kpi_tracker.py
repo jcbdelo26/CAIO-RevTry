@@ -17,8 +17,10 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
+from models.schemas import DraftApprovalStatus
+from persistence.base import StorageBackend
 from pipeline.circuit_breaker import CircuitBreaker
 
 
@@ -36,6 +38,13 @@ class KPISnapshot:
     unsub_rate: float = 0.0
     emergency_stop: bool = False
     violations: list[str] = field(default_factory=list)
+    # Draft-lifecycle metrics (derived from storage)
+    drafts_generated: int = 0
+    drafts_edited: int = 0
+    drafts_approved: int = 0
+    drafts_dispatched: int = 0
+    drafts_rejected: int = 0
+    approval_rate: float = 0.0
 
 
 # Thresholds
@@ -68,8 +77,13 @@ def _escalation_path() -> Path:
 class KPITracker:
     """Tracks dispatch KPIs and triggers emergency stop when thresholds are breached."""
 
-    def __init__(self, circuit_breaker: CircuitBreaker | None = None):
+    def __init__(
+        self,
+        circuit_breaker: CircuitBreaker | None = None,
+        storage: Optional[StorageBackend] = None,
+    ):
         self.cb = circuit_breaker or CircuitBreaker()
+        self.storage = storage
 
     def record_metrics(
         self,
@@ -112,6 +126,9 @@ class KPITracker:
             snapshot.bounce_rate = snapshot.bounce_count / snapshot.sent_count
             snapshot.unsub_rate = snapshot.unsub_count / snapshot.sent_count
 
+        # Draft metrics reflect ALL drafts in storage (current-state snapshot, not today-only)
+        self._populate_draft_metrics(snapshot)
+
         # Check thresholds (only meaningful after enough sends)
         violations: list[str] = []
 
@@ -145,6 +162,12 @@ class KPITracker:
             "unsub_rate": round(snapshot.unsub_rate, 4),
             "emergency_stop": snapshot.emergency_stop,
             "violations": snapshot.violations,
+            "drafts_generated": snapshot.drafts_generated,
+            "drafts_edited": snapshot.drafts_edited,
+            "drafts_approved": snapshot.drafts_approved,
+            "drafts_dispatched": snapshot.drafts_dispatched,
+            "drafts_rejected": snapshot.drafts_rejected,
+            "approval_rate": snapshot.approval_rate,
         }
         path.write_text(json.dumps(kpi_data, indent=2), encoding="utf-8")
 
@@ -153,6 +176,26 @@ class KPITracker:
             self._trigger_emergency_stop(snapshot)
 
         return snapshot
+
+    def _populate_draft_metrics(self, snapshot: KPISnapshot) -> None:
+        """Populate draft-lifecycle metrics on snapshot from storage. No-op if no storage."""
+        if self.storage is None:
+            return
+        drafts = self.storage.list_followup_drafts()
+        approved_statuses = {DraftApprovalStatus.APPROVED, DraftApprovalStatus.DISPATCHED}
+        generated = len(drafts)
+        edited = sum(1 for d in drafts if d.edit_diff is not None)
+        approved = sum(1 for d in drafts if d.status in approved_statuses)
+        dispatched = sum(1 for d in drafts if d.status == DraftApprovalStatus.DISPATCHED)
+        rejected = sum(1 for d in drafts if d.status == DraftApprovalStatus.REJECTED)
+        denominator = approved + rejected
+        approval_rate = approved / denominator if denominator > 0 else 0.0
+        snapshot.drafts_generated = generated
+        snapshot.drafts_edited = edited
+        snapshot.drafts_approved = approved
+        snapshot.drafts_dispatched = dispatched
+        snapshot.drafts_rejected = rejected
+        snapshot.approval_rate = approval_rate
 
     def _trigger_emergency_stop(self, snapshot: KPISnapshot) -> None:
         """Trip all circuit breakers and log escalation."""
@@ -207,4 +250,10 @@ class KPITracker:
             unsub_rate=data["unsub_rate"],
             emergency_stop=data["emergency_stop"],
             violations=data.get("violations", []),
+            drafts_generated=data.get("drafts_generated", 0),
+            drafts_edited=data.get("drafts_edited", 0),
+            drafts_approved=data.get("drafts_approved", 0),
+            drafts_dispatched=data.get("drafts_dispatched", 0),
+            drafts_rejected=data.get("drafts_rejected", 0),
+            approval_rate=data.get("approval_rate", 0.0),
         )
