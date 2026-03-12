@@ -27,7 +27,7 @@ HAIKU_MODEL = "claude-haiku-4-5-20251001"
 SONNET_MODEL = "claude-sonnet-4-6"
 
 DEFAULT_TIMEOUT = 60.0
-MAX_RETRIES = 2
+MAX_RETRIES = 3
 
 # HTTP status codes that warrant a retry
 _RETRYABLE_STATUS = {429, 500, 502, 503, 529}
@@ -134,7 +134,9 @@ class AnthropicClient:
                     )
                     last_exc = e
                     import asyncio
-                    await asyncio.sleep(2 ** attempt)
+                    # 529 overload needs longer backoff; other retryable errors use exponential
+                    delay = 30 * (attempt + 1) if e.status_code == 529 else 2 ** attempt
+                    await asyncio.sleep(delay)
                     continue
                 raise
 

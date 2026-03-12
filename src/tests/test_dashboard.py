@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from dashboard.app import app  # noqa: E402 — triggers load_dotenv at collection time, before any fixture
 from dashboard.followup_storage import get_followup_draft, save_followup_draft
 from models.schemas import (
     ContactConversationSummary,
@@ -33,7 +34,6 @@ def _use_tmp_outputs(tmp_path, monkeypatch):
 
 @pytest.fixture()
 def client():
-    from dashboard.app import app
     return TestClient(app)
 
 
@@ -269,7 +269,7 @@ def seeded_followups(tmp_path):
 
 
 class TestDashboardLoads:
-    def test_empty_dashboard(self, client):
+    def test_empty_dashboard(self, client, _use_tmp_outputs):
         resp = client.get("/")
         assert resp.status_code == 200
         assert "No drafts" in resp.text

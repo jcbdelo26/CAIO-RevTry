@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 from agents.campaign_craft_agent import craft_campaigns
 from agents.segmentation_agent import segment_batch
