@@ -1326,6 +1326,25 @@ Task 3B   Live MCP discovery
 
 ---
 
+## Operational Improvements
+
+- [~] **Task 86: Cron Failure Alerting — Slack Webhook** (AUTO) — ON HOLD
+  - **Status**: Code complete, committed (`0de5756`, 2026-03-13). Blocked on Slack admin access approval.
+  - **Completed code**: `src/dashboard/app.py` — `_send_slack_alert()` helper + 3 alert triggers:
+    1. Unauthorized cron request (401) — indicates possible CRON_SECRET misconfiguration
+    2. Total draft generation failure (`draft_failed >= actionable`) — Anthropic 529 overload
+    3. Per-contact dispatch failure (`dispatch.failed > 0`) — contacts whose sends failed overnight
+  - **Environment contract**: `ALERT_SLACK_WEBHOOK_URL` documented in `environment_contract.md`
+  - **Remaining action (HUMAN)**: Once Slack admin grants access:
+    1. Click "Add New Webhook to Workspace" → pick `#revtry-alerts` channel → Allow
+    2. Copy the `https://hooks.slack.com/services/...` URL
+    3. Add to `.env`: `ALERT_SLACK_WEBHOOK_URL=<url>`
+    4. Add to Vercel: Project Settings → Environment Variables → `ALERT_SLACK_WEBHOOK_URL` (Production + Preview)
+    5. Redeploy on Vercel (or push a commit to trigger auto-deploy)
+  - **No code changes needed** — alerting activates automatically when the env var is set
+
+---
+
 ## Hero Outcomes
 
 | # | Outcome | Gate | Status |
