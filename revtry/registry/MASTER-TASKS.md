@@ -1311,6 +1311,19 @@ Task 3B   Live MCP discovery
     6. Updated sources of truth: PRD, CLAUDE.md, environment_contract, MASTER-TASKS
   - **Tests**: 400 total passing; renamed `test_filter_eligible_summaries_skips_active_sales` → `test_filter_eligible_summaries_does_not_skip_active_sales`
 
+- [x] **Task 85: Anthropic API Key — Windows Env Var Override Fix + 529 Backoff Improvement** (AUTO)
+  - **Completed**: 2026-03-13
+  - **Files modified**: `src/pipeline/runner.py`, `src/dashboard/app.py`, `src/scripts/ghl_audit.py`, `src/scripts/ghl_pipeline.py`, `src/scripts/ghl_enrich.py`, `src/scripts/restore_contact_tags_from_audit.py`, `src/integrations/anthropic_client.py`, `revtry/vault/operations/environment_contract.md`
+  - **Root cause**: Stale `ANTHROPIC_API_KEY` in Windows User AND System environment variables overrode `.env` values because `load_dotenv()` does not override existing OS env vars by default. Key was expired/wrong workspace → "credit balance too low" on every pipeline run.
+  - **Changes**:
+    1. All 6 `load_dotenv()` calls updated to `load_dotenv(override=True)` — `.env` always wins
+    2. `MAX_RETRIES` increased from 2 → 3 (4 total attempts) in `anthropic_client.py`
+    3. 529 overloaded backoff changed from `2**attempt` (1s/2s) to `30 * (attempt+1)` (30s/60s/90s)
+    4. User deleted both Windows User and System `ANTHROPIC_API_KEY` env vars
+    5. Updated `environment_contract.md` with operational notes on the Windows env var override issue
+  - **Validation**: API call succeeded, $0.545 cost incurred in pipeline test run confirming key is live
+  - **Pipeline result post-fix**: 50 eligible (up from 2), 45 actionable — draft failures were Anthropic server 529s (transient load), not key/credit issues
+
 ---
 
 ## Hero Outcomes

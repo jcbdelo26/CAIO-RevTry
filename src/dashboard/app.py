@@ -25,7 +25,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -454,6 +454,19 @@ def _verify_cron_secret(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
+async def _send_slack_alert(message: str) -> None:
+    """Best-effort Slack webhook alert. Silently swallows all errors."""
+    webhook_url = os.environ.get("ALERT_SLACK_WEBHOOK_URL", "").strip()
+    if not webhook_url:
+        return
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5) as hx:
+            await hx.post(webhook_url, json={"text": message})
+    except Exception:
+        logger.warning("Slack alert failed (non-blocking)", exc_info=True)
+
+
 @app.get("/api/cron/warm-pipeline")
 async def cron_warm_pipeline(request: Request):
     """Vercel Cron Job endpoint — triggers daily warm follow-up pipeline.
@@ -463,7 +476,19 @@ async def cron_warm_pipeline(request: Request):
     Secured via CRON_SECRET Bearer token (set as Vercel env var).
     Runs at 12:00 UTC (6:00 AM CT) daily via vercel.json crons config.
     """
-    _verify_cron_secret(request)
+    try:
+        _verify_cron_secret(request)
+    except HTTPException as exc:
+        if exc.status_code == 401:
+            await _send_slack_alert(
+                ":lock: *RevTry \u2014 Unauthorized Cron Request*\n"
+                f"\u2022 Path: {request.url.path}\n"
+                f"\u2022 IP: {request.client.host if request.client else 'unknown'}\n"
+                f"\u2022 Auth header present: {'yes' if request.headers.get('authorization') else 'no'}\n"
+                "\u2022 Check: CRON_SECRET may be mis-configured in Vercel env vars"
+            )
+        raise
+
     dry_run = os.environ.get("DISPATCH_DRY_RUN", "").lower() in ("true", "1", "yes")
 
     try:
@@ -474,6 +499,20 @@ async def cron_warm_pipeline(request: Request):
     except Exception:
         logger.exception("Cron warm pipeline failed")
         return JSONResponse(status_code=500, content={"status": "error", "errors": ["Pipeline execution failed"]})
+
+    # Alert when ALL draft generation failed (partial failures are acceptable noise)
+    _draft_failed = orchestrator_result.get("draft_failed", 0)
+    _actionable = orchestrator_result.get("actionable", 0)
+    if _draft_failed > 0 and _actionable > 0 and _draft_failed >= _actionable:
+        await _send_slack_alert(
+            ":warning: *RevTry \u2014 Draft Generation Failure* "
+            f"({orchestrator_result.get('briefing_date')})\n"
+            f"\u2022 Failed: {_draft_failed} | Drafted: {orchestrator_result.get('drafted', 0)} "
+            f"| Actionable: {_actionable}\n"
+            "\u2022 Likely cause: Anthropic API overloaded (529). "
+            "Fix: re-run with force=True or wait for tomorrow's cron.\n"
+            "\u2022 Review: <https://caio-rev-try.vercel.app/briefing|Briefing Dashboard>"
+        )
 
     dispatch_payload = None
     try:
@@ -493,6 +532,23 @@ async def cron_warm_pipeline(request: Request):
     except Exception:
         logger.exception("Cron auto-dispatch failed")
         dispatch_payload = {"status": "error", "errors": ["Auto-dispatch failed"]}
+        await _send_slack_alert(
+            ":rotating_light: RevTry - Dispatch Crashed: Auto-dispatch raised an"
+            " unhandled exception. 0 sends completed."
+            " Review: https://caio-rev-try.vercel.app/dispatch"
+        )
+    # Alert on any per-contact dispatch failure (each failed send = a contact missed)
+    _dispatch_failed = (dispatch_payload or {}).get("failed", 0)
+    if _dispatch_failed > 0:
+        _dispatch_errors = (dispatch_payload or {}).get("errors") or []
+        await _send_slack_alert(
+            ":rotating_light: *RevTry \u2014 Dispatch Failure* "
+            f"({orchestrator_result.get('briefing_date')})\n"
+            f"\u2022 Failed: {_dispatch_failed} | "
+            f"Dispatched: {(dispatch_payload or {}).get('dispatched', 0)}\n"
+            + (f"\u2022 Errors: {'; '.join(str(e) for e in _dispatch_errors[:2])}\n" if _dispatch_errors else "")
+            + "\u2022 Review: <https://caio-rev-try.vercel.app/dispatch|Dispatch Dashboard>"
+        )
 
     return JSONResponse(
         status_code=200,

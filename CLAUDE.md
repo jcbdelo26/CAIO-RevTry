@@ -15,7 +15,7 @@ Current status:
 - Warm generation, review, approval, dispatch, scheduler, auth, storage abstraction implemented
 - Vercel Cron Job: daily pipeline + auto-dispatch at 6 AM CT (`GET /api/cron/warm-pipeline`)
 - On-demand dispatch: `GET /api/cron/dispatch` (CRON_SECRET auth, curl-triggered)
-- Test baseline: **384 passed** (2026-03-11)
+- Test baseline: **400 passed** (2026-03-12, Task 84)
 - Remaining: Task 64 (Dani verification) → Task 63A (live dispatch flip) → Phase 3G
 
 ---
@@ -128,7 +128,7 @@ Triggers: template changes, route handler changes, model changes affecting displ
 
 ## 11. Validation
 
-Run tests: `cd src && python -m pytest tests -q` — baseline: **384 passed**
+Run tests: `cd src && python -m pytest tests -q` — baseline: **400 passed**
 Full commands: `vault/operations/validation_commands.md`
 
 ---
@@ -140,6 +140,12 @@ Full commands: `vault/operations/validation_commands.md`
 - Task 63A: DONE — `DISPATCH_DRY_RUN=false`, live dispatch active
 - Auto-dispatch: DONE — cron auto-dispatches APPROVED drafts; `/api/cron/dispatch` for on-demand
 - GHL links: DONE — dispatch history shows "View Thread" links to GHL conversations
+
+**Task 85 (DONE 2026-03-13)**: Anthropic API key Windows env var override fix
+- All `load_dotenv()` calls → `load_dotenv(override=True)` (6 files)
+- 529 backoff: 30s/60s/90s; MAX_RETRIES=3
+- Windows User + System `ANTHROPIC_API_KEY` env vars deleted by user
+- API key confirmed working: $0.545 cost in test run
 
 **Phase 3G** (NOW UNBLOCKED): Agentic enhancements (Tasks 75-82)
 - Spec: `docs/superpowers/specs/2026-03-11-phase-3g-agentic-enhancements-design.md`
