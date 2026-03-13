@@ -15,7 +15,7 @@ Current status:
 - Warm generation, review, approval, dispatch, scheduler, auth, storage abstraction implemented
 - Vercel Cron Job: daily pipeline + auto-dispatch at 6 AM CT (`GET /api/cron/warm-pipeline`)
 - On-demand dispatch: `GET /api/cron/dispatch` (CRON_SECRET auth, curl-triggered)
-- Test baseline: **400 passed** (2026-03-12, Task 84)
+- Test baseline: **400 passed** (2026-03-13, Task 87)
 - Remaining: Task 64 (Dani verification) → Task 63A (live dispatch flip) → Phase 3G
 
 ---
@@ -141,20 +141,25 @@ Full commands: `vault/operations/validation_commands.md`
 - Auto-dispatch: DONE — cron auto-dispatches APPROVED drafts; `/api/cron/dispatch` for on-demand
 - GHL links: DONE — dispatch history shows "View Thread" links to GHL conversations
 
-**Task 85 (DONE 2026-03-13)**: Anthropic API key Windows env var override fix
-- All `load_dotenv()` calls → `load_dotenv(override=True)` (6 files)
-- 529 backoff: 30s/60s/90s; MAX_RETRIES=3
-- Windows User + System `ANTHROPIC_API_KEY` env vars deleted by user
-- API key confirmed working: $0.545 cost in test run
+**Task 87 (DONE 2026-03-13)**: /followups queue visibility fix + cron batch_size safety floor
+- Queue now shows all non-terminal drafts (PENDING/APPROVED/SEND_FAILED) across all dates
+- Cron capped at `batch_size=25` per run to limit timeout blast radius
+- `vercel.json` `maxDuration=300` already set — no change needed
+- Tests: 400 passed
 
-**Phase 3G** (NOW UNBLOCKED): Agentic enhancements (Tasks 75-82)
-- Spec: `docs/superpowers/specs/2026-03-11-phase-3g-agentic-enhancements-design.md`
-- Batch 1 (Tasks 75-77): Measurement foundation — edit diffs, KPI metrics, confidence logging
-- Batch 2 (Tasks 78-80): Slash command enhancements
-- Batch 3 (Task 81): Enhanced retry with failure context
-- Task 82: DONE — CLAUDE.md token audit
+**Phase 3G**: COMPLETE (Tasks 75-80, 82 done 2026-03-13)
+- Task 81 (enhanced retry): DATA-BLOCKED — needs ~2 weeks production baseline before calibration
+- Task 86 (Slack alerts): DEFERRED — code deployed; activate by setting `SLACK_WEBHOOK_URL` in Vercel
+
+**Phase 4** (NOW UNBLOCKED): Cold-outbound expansion
+- Task 65: HeyReach 28-day warmup (HUMAN — start to unlock LinkedIn sequencing)
+- Task 66: Reactivate Instantly cold email integration (AUTO)
+- Task 67: Reactivate HeyReach LinkedIn integration (AUTO, after Task 65 +28 days)
+- Task 68: Cold expansion validation (HUMAN+AUTO)
+
+**Hero Outcome 2**: 5/10 approved drafts — Dani needs 5 more approvals at `/followups`
 
 **Critical safety rules**:
 - No email is sent without explicit human approval (approval changes draft state only)
-- Phase 3G enhancements must not destabilize the warm pipeline
 - Live dispatch active — send safety chain enforced: circuit breaker → rate limiter → dedup → approval
+- Cold outbound (Phase 4) must NOT share GHL send budget with warm; channel routing is a hard block

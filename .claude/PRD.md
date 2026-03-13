@@ -1,6 +1,6 @@
 # PRD — RevTry: Revenue Operations Sentry
 ## ChiefAIOfficer.com
-**Version**: 2.14 | **Date**: 2026-03-11 | **Status**: Phase 3F Pipeline Populated — Dani Verification Pending; Phase 3G Planned
+**Version**: 2.15 | **Date**: 2026-03-13 | **Status**: Phase 3G Complete (Tasks 75-80, 82 done; Task 81 data-blocked); Phase 4 unblocked
 **Refined by**: Greenfield Coding Workflow bulletproofing process
 **Source**: `E:\CAIO RevOps Claw\RevTry_PRD.md` v1.0
 
@@ -45,7 +45,7 @@ This build now uses one authoritative project/runtime root.
 
 **Phase 0A hard gate:** Hero Outcome 1 is blocked until the external GHL MCP exposes the read capabilities required for audit and triage. No PRD section may assume audit or triage is runnable before Phase 0A passes.
 
-**Immediate operational priority now:** Hero Outcome 1 is operationally complete. Tasks 62D and 63 are DONE. The current path is `Task 64 (Dani verification) -> Task 63A (live dispatch flip)`. After PHASE_3F_VERCEL_LIVE, Phase 3G agentic engineering enhancements begin (Tasks 75-82). Spec: `docs/superpowers/specs/2026-03-11-phase-3g-agentic-enhancements-spec.md`
+**Immediate operational priority now:** Phase 3F COMPLETE (`PHASE_3F_VERCEL_LIVE` PASSED 2026-03-11). Phase 3G COMPLETE except Task 81 (data-blocked ~2 weeks). Live dispatch active (`DISPATCH_DRY_RUN=false`). Queue visibility fix deployed (Task 87, 2026-03-13). Hero Outcome 2 at 5/10 approved drafts — Dani needs 5 more. **Current focus: Phase 4 (cold outbound expansion) is now fully unblocked.** Task 81 resumes when production baseline data is available.
 
 **Known inconsistency:** The external `manifest.json` may advertise fewer tools than `server.py` documents. Treat live discovery as the ONLY source of truth for tool availability and behavior. Treat `server.py` as the authoritative entrypoint path. Do not treat the manifest tool list as complete.
 

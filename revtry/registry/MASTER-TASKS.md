@@ -1,9 +1,9 @@
 # MASTER-TASKS.md — RevTry Full Implementation Tracker
 
 **Valid Through**: 2026-12-31
-**Last Updated**: 2026-03-10
-**Updated By**: Codex implementation session — Phase 3F hardening validated + same-day Hero Outcome execution path
-**PRD Source**: `Project-RevTry/.claude/PRD.md` v2.12
+**Last Updated**: 2026-03-13
+**Updated By**: Claude Code session — Phase 3G Tasks 75-80+82 marked complete; Tasks 85-87 added; queue visibility fix deployed
+**PRD Source**: `Project-RevTry/.claude/PRD.md` v2.15
 **Handoff Docs**:
 - `Project-RevTry/.agents/plans/phase-3-conversation-followup-handoff.md`
 - `Project-RevTry/.agents/plans/prd-v2.5-update-handoff.md`
@@ -36,10 +36,12 @@
 | 3C | Follow-Up Drafter + Storage | 4 | 4 | 0 | 0 | Personalized follow-up drafts ready |
 | 3D | Warm Dashboard | 5 | 5 | 0 | 0 | Briefing + follow-up queue live |
 | 3E | Warm Deploy-Readiness Hardening | 22 | 22 | 0 | 0 | Manual warm flow hardened; tag-safety smoke and audited tag recovery both verified |
-| 3F | Vercel Deployment (Warm) | 8 | 5 | 0 | 3 | Warm dashboard accessible remotely with real data + remote approval |
+| 3F | Vercel Deployment (Warm) | 8 | 8 | 0 | 0 | ✅ COMPLETE — Warm dashboard live + Dani approved live dispatches |
+| 3G | Agentic Enhancements | 8 | 7 | 0 | 1 | Measurement + slash commands enhanced; retry pending data |
+| Ops | Infra / Bug Fixes | 3 | 2 | 1 | 0 | Env fix + queue visibility deployed; Slack on-hold |
 | 4 | Cold-Outbound Expansion | 4 | 0 | 0 | 4 | Instantly + HeyReach reactivated |
 | 5 | Revenue Intelligence + Autonomy | 5 | 0 | 0 | 5 | Full autonomy graduation |
-| **Total** | | **96** | **79** | **3** | **14** | |
+| **Total** | | **107** | **91** | **4** | **12** | |
 
 ---
 
@@ -1083,47 +1085,48 @@
 
 ### Batch 1: Runtime — Measurement Foundation
 
-- [ ] **Task 75: Capture human edit diffs on follow-up drafts** (AUTO)
-  Status: NOT_STARTED
+- [x] **Task 75: Capture human edit diffs on follow-up drafts** (AUTO)
+  Status: DONE | Completed: 2026-03-13 | Commit: ea697b8
   --> Depends on: `PHASE_3F_VERCEL_LIVE`
-  Files: `src/dashboard/app.py` (L521), `src/models/schemas.py`, persistence layer
+  Files: `src/dashboard/app.py`, `src/models/schemas.py`, persistence layer
   Metric: Edit rate (% of approved drafts that were edited)
 
-- [ ] **Task 76: Add storage-derived pipeline metrics to KPI tracker** (AUTO)
-  Status: NOT_STARTED
+- [x] **Task 76: Add storage-derived pipeline metrics to KPI tracker** (AUTO)
+  Status: DONE | Completed: 2026-03-13 | Commit: b33b637
   --> Depends on: `PHASE_3F_VERCEL_LIVE`
-  Files: `src/pipeline/kpi_tracker.py` (L25-38)
+  Files: `src/pipeline/kpi_tracker.py`
   Metric: 6 new draft-lifecycle counts (generated, edited, approved, dispatched, rejected, approval_rate)
 
-- [ ] **Task 77: Shadow-log confidence on ConversationAnalysis** (AUTO)
-  Status: NOT_STARTED
+- [x] **Task 77: Shadow-log confidence on ConversationAnalysis** (AUTO)
+  Status: DONE | Completed: 2026-03-13 | Commit: 43f1147
   --> Depends on: `PHASE_3F_VERCEL_LIVE`
-  Files: `src/models/schemas.py` (L359), `src/agents/conversation_analyst_agent.py`
+  Files: `src/models/schemas.py`, `src/agents/conversation_analyst_agent.py`
   Note: Shadow telemetry ONLY — no routing, filtering, or display changes
 
 ### Batch 2: Slash-Command — Validation & Specification Quality
 
-- [ ] **Task 78: Output-only validation with evidence packets** (AUTO)
-  Status: NOT_STARTED
+- [x] **Task 78: Output-only validation with evidence packets** (AUTO)
+  Status: DONE | Completed: 2026-03-13 | Commit: 3f00746
   --> Depends on: Tasks 75-77
   Files: `.claude/commands/validate.md`
 
-- [ ] **Task 79: Prompt contracts with complexity gate** (AUTO)
-  Status: NOT_STARTED
+- [x] **Task 79: Prompt contracts with complexity gate** (AUTO)
+  Status: DONE | Completed: 2026-03-13 | Commit: 15c7bfe
   --> Depends on: Task 78
   Files: `.claude/commands/plan-task.md`
 
-- [ ] **Task 80: Self-modifying candidate rules in /metabolize** (AUTO)
-  Status: NOT_STARTED
+- [x] **Task 80: Self-modifying candidate rules in /metabolize** (AUTO)
+  Status: DONE | Completed: 2026-03-13 | Commit: acc73c6
   --> Depends on: Task 78
-  Files: `.claude/commands/metabolize.md`, `revtry/memory/candidate_rules.md` (new)
+  Files: `.claude/commands/metabolize.md`, `revtry/memory/candidate_rules.md`
 
 ### Batch 3: Runtime — Enhanced Retry
 
 - [ ] **Task 81: Feed gate failure context into existing retry** (AUTO)
-  Status: NOT_STARTED
-  --> Depends on: Tasks 75-77 (need metrics baseline)
+  Status: NOT_STARTED — DATA-BLOCKED (~2 weeks of production cron runs needed)
+  --> Depends on: Tasks 75-77 (need confidence + edit-diff baseline from production)
   Files: `src/pipeline/followup_orchestrator.py` (L342-363)
+  Note: Cannot calibrate until ConversationAnalysis.confidence distribution and FollowUpDraft.edit_diff patterns are available from sustained production runs
 
 ### Batch 4: CLAUDE.md Token Audit
 
@@ -1140,9 +1143,37 @@
 
 | Gate ID | Status | Depends On |
 |---------|--------|------------|
-| PHASE_3G_MEASUREMENT_BASELINE | NOT_STARTED | Tasks 75-77 |
-| PHASE_3G_SLASH_COMMANDS_ENHANCED | NOT_STARTED | Tasks 78-80 |
-| PHASE_3G_ENHANCED_RETRY | NOT_STARTED | Task 81 |
+| PHASE_3G_MEASUREMENT_BASELINE | PASSED (2026-03-13) | Tasks 75-77 — edit diffs, KPI metrics, confidence logging live |
+| PHASE_3G_SLASH_COMMANDS_ENHANCED | PASSED (2026-03-13) | Tasks 78-80 — /validate, /plan-task, /metabolize enhanced |
+| PHASE_3G_ENHANCED_RETRY | BLOCKED — data pending | Task 81 — awaiting ~2 weeks of production baseline data |
+
+---
+
+---
+
+## Ops / Infra — Bug Fixes and Observability
+
+> Standalone operational tasks not tied to a phase milestone
+
+- [x] **Task 85: Anthropic API key Windows env var override fix** (AUTO)
+  Status: DONE | Completed: 2026-03-13 | Commit: 476b428
+  Problem: Windows User/System `ANTHROPIC_API_KEY` env vars were silently overriding `.env` values, causing `load_dotenv()` to have no effect.
+  Fix: All `load_dotenv()` calls → `load_dotenv(override=True)` (6 files). 529 backoff adjusted: 30s/60s/90s; MAX_RETRIES=3.
+  Result: API key confirmed working ($0.545 cost in first test run after fix). Stale Windows env vars deleted by user.
+
+- [D] **Task 86: Slack webhook alerting for cron pipeline failures** (AUTO)
+  Status: DEFERRED — ON-HOLD | Commit: 0de5756 (code complete)
+  Problem: Cron failures are silent — no operator notification when pipeline errors occur.
+  Fix: Code deployed; `SLACK_WEBHOOK_URL` env var must be set in Vercel to activate.
+  Blocked on: Slack admin approving the incoming webhook. No code changes needed once URL is available.
+
+- [x] **Task 87: /followups queue visibility fix + cron batch_size safety floor** (AUTO)
+  Status: DONE | Completed: 2026-03-13 | Commit: 0a75d97
+  Problem: Queue filtered by MAX(business_date) — all PENDING drafts from prior days disappeared after a partial cron run (e.g. only Robert Lewis visible despite 79+ actionable contacts in Postgres).
+  Fix 1: `briefing_loader.py` — queue now shows all non-terminal drafts (PENDING, APPROVED, SEND_FAILED) across all dates when no explicit date is requested.
+  Fix A: `app.py` — cron now passes `batch_size=25` to limit per-run blast radius.
+  Note: vercel.json `maxDuration=300` was already set — no change needed.
+  Tests: 400 passed.
 
 ---
 
