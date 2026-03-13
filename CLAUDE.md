@@ -16,7 +16,7 @@ Current status:
 - Vercel Cron Job: daily pipeline + auto-dispatch at 6 AM CT (`GET /api/cron/warm-pipeline`)
 - On-demand dispatch: `GET /api/cron/dispatch` (CRON_SECRET auth, curl-triggered)
 - Test baseline: **400 passed** (2026-03-13, Task 87)
-- Remaining: Task 64 (Dani verification) → Task 63A (live dispatch flip) → Phase 3G
+- Phase 3F + 3G complete — Phase 4 (cold outbound) is next
 
 ---
 
@@ -123,6 +123,14 @@ After every major UI/UX or backend change, spawn parallel verification agents BE
 3. **Code Simplifier Agent** — clarity, consistency (`pr-review-toolkit:code-simplifier`)
 
 Triggers: template changes, route handler changes, model changes affecting display, CSS changes.
+
+### After Every Bug Fix (MANDATORY — no exceptions)
+
+1. **Run tests locally**: `cd src && python -m pytest tests -q` — must pass before proceeding
+2. **Force redeploy to Vercel**: `vercel --prod` from project root — do NOT rely on git push auto-deploy
+3. **Verify healthz**: `GET caio-rev-try.vercel.app/healthz` — must return `"db":"connected"`
+4. **Playwright visual validation**: Navigate to the affected page(s) and take a full-page screenshot — confirm the fix is visible and no regressions introduced
+5. **Session does not close until screenshot confirms the fix is live on production**
 
 ---
 
