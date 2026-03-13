@@ -173,9 +173,18 @@ def load_followup_queue(date: Optional[str] = None) -> list[dict[str, Any]]:
         analysis.contact_id: analysis
         for analysis in storage.list_conversation_analyses()
     }
-    all_drafts = storage.list_followup_drafts(business_date=date, latest_only=not bool(date))
-    queue_date = _resolve_queue_date(date, all_drafts)
-    drafts = [draft for draft in all_drafts if draft.business_date == queue_date]
+    if date:
+        # Explicit date requested — filter to that date only
+        all_drafts = storage.list_followup_drafts(business_date=date)
+        drafts = all_drafts
+        queue_date = date
+    else:
+        # No date filter — show ALL PENDING drafts across all dates.
+        # A PENDING draft from any day is still actionable (e.g. after a partial cron run).
+        all_drafts = storage.list_followup_drafts()
+        _terminal = {DraftApprovalStatus.DISPATCHED, DraftApprovalStatus.REJECTED}
+        drafts = [d for d in all_drafts if d.status not in _terminal]
+        queue_date = _resolve_queue_date(None, drafts) if drafts else current_business_date()
     queue: list[dict[str, Any]] = []
     sales_user_ids = _load_sales_team_user_ids()
     # Only show contacts with drafts — analysis-only contacts are not actionable

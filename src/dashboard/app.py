@@ -495,6 +495,7 @@ async def cron_warm_pipeline(request: Request):
         orchestrator_result = await run_followup_orchestrator(
             task_id="warm-followup-cron",
             force=False,
+            batch_size=25,  # safety floor: limits per-run blast radius
         )
     except Exception:
         logger.exception("Cron warm pipeline failed")
