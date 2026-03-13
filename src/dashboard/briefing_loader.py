@@ -187,8 +187,10 @@ def load_followup_queue(date: Optional[str] = None) -> list[dict[str, Any]]:
         queue_date = _resolve_queue_date(None, drafts) if drafts else current_business_date()
     queue: list[dict[str, Any]] = []
     sales_user_ids = _load_sales_team_user_ids()
-    # Only show contacts with drafts — analysis-only contacts are not actionable
-    contact_ids = sorted({draft.contact_id for draft in drafts})
+    # Show ALL analyzed contacts — those without drafts appear as analysis-only (non-approvable)
+    draft_contact_ids = {draft.contact_id for draft in drafts}
+    analysis_contact_ids = set(analyses.keys())
+    contact_ids = sorted(draft_contact_ids | analysis_contact_ids)
     for contact_id in contact_ids:
         analysis = analyses.get(contact_id)
         summary = summaries.get(contact_id)

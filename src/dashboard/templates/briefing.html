@@ -9,7 +9,7 @@
         <p style="color:#666;">{{ briefing.date }} · prioritized queue for conversation-aware follow-up review.</p>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <a href="/followups" class="btn" style="background:#007bff;color:white;">Open Follow-Up Queue</a>
+        <a href="/followups{% if date %}?date={{ date }}{% endif %}" class="btn" style="background:#007bff;color:white;">Open Follow-Up Queue</a>
     </div>
 </div>
 

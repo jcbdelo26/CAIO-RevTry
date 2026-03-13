@@ -347,8 +347,8 @@ class TestBriefingLoader:
         assert queue[0]["draftId"] == "draft-new"
         assert queue[0]["businessDate"] == "2026-03-09"
 
-    def test_followup_queue_excludes_contacts_without_drafts(self, tmp_path):
-        """Contacts with analyses but no drafts must not appear in the queue."""
+    def test_followup_queue_includes_contacts_without_drafts(self, tmp_path):
+        """Contacts with analyses but no drafts appear in the queue as analysis-only rows (draft=None)."""
         summary_with_draft = _build_summary("contact-with-draft")
         summary_no_draft = _build_summary("contact-no-draft", conversation_id="conv-2")
         for summary in [summary_with_draft, summary_no_draft]:
@@ -379,9 +379,14 @@ class TestBriefingLoader:
 
         queue = load_followup_queue()
 
-        assert len(queue) == 1
-        assert queue[0]["contactId"] == "contact-with-draft"
-        assert queue[0]["draftId"] is not None
+        assert len(queue) == 2
+        contact_ids_in_queue = {item["contactId"] for item in queue}
+        assert "contact-with-draft" in contact_ids_in_queue
+        assert "contact-no-draft" in contact_ids_in_queue
+        draft_item = next(i for i in queue if i["contactId"] == "contact-with-draft")
+        no_draft_item = next(i for i in queue if i["contactId"] == "contact-no-draft")
+        assert draft_item["draftId"] is not None
+        assert no_draft_item["draftId"] is None
 
     def test_load_contact_conversation_returns_full_summary(self, tmp_path):
         summary = _build_summary("contact-1")
